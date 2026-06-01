@@ -166,7 +166,6 @@ function speakText(text) {
 
   try {
     const audio = new Audio();
-    audio.crossOrigin = 'anonymous'; // Enable CORS mode for clean cross-port resource sharing
     audio.src = ttsUrl;
     audio.volume = 1.0;
 
