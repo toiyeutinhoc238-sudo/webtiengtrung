@@ -436,6 +436,11 @@ app.get('/api/tts', (req, res) => {
   tryUrl(0);
 });
 
+// Thêm đoạn này để xử lý đường dẫn gốc
+app.get('/', (req, res) => {
+  res.send('API Flashcard HSK đang hoạt động ngon lành!');
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
