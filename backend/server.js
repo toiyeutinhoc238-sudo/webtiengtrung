@@ -161,11 +161,12 @@ app.get('/api/vocabulary', async (req, res) => {
   const email = getLoggedInUserEmail(req);
 
   if (!email) {
-    // If not logged in, return master list with default unmemorized and unstarred states
+    // If not logged in, return master list with default unmemorized, unstarred, and not wrong states
     const defaultList = masterList.map(w => ({
       ...w,
       isMemorized: false,
-      isStarred: false
+      isStarred: false,
+      isWrong: false
     }));
     return res.json(defaultList);
   }
@@ -180,14 +181,16 @@ app.get('/api/vocabulary', async (req, res) => {
     return {
       ...item,
       isMemorized: state ? !!state.isMemorized : false,
-      isStarred: state ? !!state.isStarred : false
+      isStarred: state ? !!state.isStarred : false,
+      isWrong: state ? !!state.isWrong : false
     };
   });
 
   // Append user-specific custom words
   const mappedCustomWords = userCustomWords.map(cw => ({
     ...cw,
-    isCustom: true
+    isCustom: true,
+    isWrong: !!cw.isWrong
   }));
 
   res.json([...mergedList, ...mappedCustomWords]);
@@ -305,6 +308,63 @@ app.post('/api/vocabulary/toggle-starred', async (req, res) => {
   }
 });
 
+// POST set incorrect / wrong status
+app.post('/api/vocabulary/set-wrong', async (req, res) => {
+  const email = getLoggedInUserEmail(req);
+  if (!email) {
+    return res.status(401).json({ error: 'Unauthorized. Please login first.' });
+  }
+
+  const { id, isWrong } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Missing word ID' });
+  }
+
+  const wordId = parseInt(id);
+  const userData = await readUserData();
+
+  if (wordId >= 100000) {
+    // Custom word wrong set
+    const userCustomWords = userData.customWords[email] || [];
+    const wordIndex = userCustomWords.findIndex(w => w.id === wordId);
+    if (wordIndex === -1) {
+      return res.status(404).json({ error: 'Custom word not found' });
+    }
+
+    userCustomWords[wordIndex].isWrong = !!isWrong;
+    await writeUserData(userData);
+    return res.json(userCustomWords[wordIndex]);
+  } else {
+    // Built-in word wrong set
+    const masterList = await readDatabase();
+    const wordIndex = masterList.findIndex(w => w.id === wordId);
+    if (wordIndex === -1) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+
+    if (!userData.progress[email]) {
+      userData.progress[email] = {};
+    }
+
+    const wordKey = wordId.toString();
+    const currentProgress = userData.progress[email][wordKey] || { isMemorized: false, isStarred: false, isWrong: false };
+
+    userData.progress[email][wordKey] = {
+      ...currentProgress,
+      isWrong: !!isWrong
+    };
+
+    await writeUserData(userData);
+
+    res.json({
+      ...masterList[wordIndex],
+      isMemorized: userData.progress[email][wordKey].isMemorized,
+      isStarred: userData.progress[email][wordKey].isStarred,
+      isWrong: userData.progress[email][wordKey].isWrong
+    });
+  }
+});
+
 // POST add a custom word for the logged-in user
 app.post('/api/vocabulary', async (req, res) => {
   const email = getLoggedInUserEmail(req);
@@ -337,7 +397,8 @@ app.post('/api/vocabulary', async (req, res) => {
     example_vi: example_vi ? example_vi.trim().toLowerCase() : '',
     isMemorized: false,
     isStarred: false,
-    isCustom: true
+    isCustom: true,
+    isWrong: false
   };
 
   userData.customWords[email].push(newWord);

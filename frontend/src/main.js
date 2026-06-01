@@ -15,6 +15,14 @@ let currentUser = null;   // Active authenticated user profile
 const API_BASE_URL = 'https://webtiengtrung.onrender.com'; // Thêm dòng này
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id-here.apps.googleusercontent.com';
 
+// --- ENHANCEMENT STATE MANAGEMENT ---
+let studyMode = 'flip';         // 'flip' or 'type'
+let typingAttempts = 3;         // Remaining attempts (starts at 3)
+let isTypingAnswerFinished = false; // Whether current card has finished evaluation
+let activeCustomList = 'Mặc định'; // Active custom list selected in sidebar
+let customLists = ['Mặc định'];  // List of custom named lists
+let studyCustomCategory = null; // Filter for active custom list being studied
+
 // --- DOM ELEMENTS CACHE ---
 const cardElement = document.getElementById('flashcard-card');
 const cardWordFront = document.getElementById('card-word-front');
@@ -200,12 +208,18 @@ async function fetchVocabulary() {
     if (!response.ok) throw new Error('Không thể tải từ vựng từ API');
     vocabList = await response.json();
 
+    initCustomLists();
+    renderCustomLists();
     updateStats();
     applyFilters();
     renderCustomWordsTable();
   } catch (error) {
     console.error('API Error:', error);
     showToast('Lỗi kết nối máy chủ backend!', true);
+    initCustomLists();
+    renderCustomLists();
+    updateStats();
+    applyFilters();
   }
 }
 
@@ -224,7 +238,7 @@ async function toggleWordMemorized(id) {
     if (index !== -1) {
       vocabList[index] = updatedWord;
       updateStats();
-      applyFilters();
+      applyFilters(true);
       showToast(updatedWord.isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
     }
   } catch (error) {
@@ -248,7 +262,7 @@ async function toggleWordStarred(id) {
     if (index !== -1) {
       vocabList[index] = updatedWord;
       updateStats();
-      applyFilters();
+      applyFilters(true);
       showToast(updatedWord.isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
     }
   } catch (error) {
@@ -264,7 +278,7 @@ async function handleAddWordForm(e) {
   const pinyin = document.getElementById('input-pinyin').value.trim();
   const meaning = document.getElementById('input-meaning').value.trim();
   const level = parseInt(document.getElementById('input-level').value);
-  const category = document.getElementById('input-category').value.trim();
+  const category = document.getElementById('input-category-select').value;
   const example_zh = document.getElementById('input-example-zh').value.trim();
   const example_vi = document.getElementById('input-example-vi').value.trim();
 
@@ -283,9 +297,18 @@ async function handleAddWordForm(e) {
     vocabList.push(newWord);
 
     addWordForm.reset();
+    
+    // Auto sync select values
+    if (!customLists.includes(category)) {
+      customLists.push(category);
+      const userKey = currentUser ? currentUser.email : 'guest';
+      localStorage.setItem(`custom_lists_${userKey}`, JSON.stringify(customLists));
+    }
+    
+    renderCustomLists();
+    selectCustomList(category);
     updateStats();
-    applyFilters();
-    renderCustomWordsTable();
+    applyFilters(true);
     showToast('Thêm từ mới thành công!');
 
     // Jump to the newly added word if it's shown in the current filters
@@ -346,6 +369,11 @@ function renderActiveCard() {
 
   const current = filteredList[currentIndex];
 
+  if (studyMode === 'type') {
+    renderActiveCardTyping(current);
+    return;
+  }
+
   // Render Front Face
   cardWordFront.textContent = current.word;
   cardLevelFront.textContent = `HSK ${current.level}`;
@@ -391,23 +419,108 @@ function renderActiveCard() {
 }
 
 function updateStats() {
-  const total = vocabList.length;
-  const memorized = vocabList.filter(w => w.isMemorized).length;
-  const starred = vocabList.filter(w => w.isStarred).length;
+  // 1. Dynamic stats based on activeLevel
+  let levelList = vocabList;
+  if (activeLevel !== 'all') {
+    levelList = vocabList.filter(w => w.level.toString() === activeLevel);
+  }
 
-  statsTotal.textContent = total;
-  statsMemorized.textContent = memorized;
-  statsStarred.textContent = starred;
+  const total = levelList.length;
+  const memorized = levelList.filter(w => w.isMemorized).length;
+  const unmemorized = total - memorized;
+  const starred = levelList.filter(w => w.isStarred).length;
+
+  const statsTotal = document.getElementById('stats-total');
+  const statsMemorized = document.getElementById('stats-memorized');
+  const statsUnmemorized = document.getElementById('stats-unmemorized');
+  const statsStarred = document.getElementById('stats-starred');
+
+  if (statsTotal) statsTotal.textContent = total;
+  if (statsMemorized) statsMemorized.textContent = memorized;
+  if (statsUnmemorized) statsUnmemorized.textContent = unmemorized;
+  if (statsStarred) statsStarred.textContent = starred;
+
+  // 2. Mistake badge count
+  const mistakeCount = vocabList.filter(w => w.isWrong).length;
+  const mistakeBadge = document.getElementById('mistake-count-badge');
+  if (mistakeBadge) mistakeBadge.textContent = mistakeCount;
+
+  // 3. Detailed Stats Grid Table
+  renderDetailedStatsTable();
+}
+
+function renderDetailedStatsTable() {
+  const tbody = document.getElementById('detailed-stats-rows');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  const rowsData = [];
+
+  // HSK Levels 1-6
+  for (let lvl = 1; lvl <= 6; lvl++) {
+    const lvlWords = vocabList.filter(w => !w.isCustom && w.level === lvl);
+    const total = lvlWords.length;
+    const memorized = lvlWords.filter(w => w.isMemorized).length;
+    const unmemorized = total - memorized;
+    const starred = lvlWords.filter(w => w.isStarred).length;
+
+    rowsData.push({
+      name: `HSK ${lvl}`,
+      total, memorized, unmemorized, starred
+    });
+  }
+
+  // Custom Words
+  const customWords = vocabList.filter(w => w.isCustom);
+  const cTotal = customWords.length;
+  const cMemorized = customWords.filter(w => w.isMemorized).length;
+  const cUnmemorized = cTotal - cMemorized;
+  const cStarred = customWords.filter(w => w.isStarred).length;
+  rowsData.push({
+    name: 'Từ tự thêm ✏️',
+    total: cTotal, memorized: cMemorized, unmemorized: cUnmemorized, starred: cStarred
+  });
+
+  // Total
+  const allTotal = vocabList.length;
+  const allMemorized = vocabList.filter(w => w.isMemorized).length;
+  const allUnmemorized = allTotal - allMemorized;
+  const allStarred = vocabList.filter(w => w.isStarred).length;
+  rowsData.push({
+    name: 'Tổng cộng',
+    total: allTotal, memorized: allMemorized, unmemorized: allUnmemorized, starred: allStarred,
+    isTotalRow: true
+  });
+
+  rowsData.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.isTotalRow) {
+      tr.style.fontWeight = 'bold';
+      tr.style.borderTop = '2px solid var(--border-glass)';
+      tr.style.borderBottom = '2px dashed var(--border-glass)';
+    } else {
+      tr.style.borderBottom = '1px solid var(--border-glass)';
+    }
+
+    tr.innerHTML = `
+      <td style="padding: 10px; text-align: left; font-weight: ${row.isTotalRow ? '700' : '500'};">${row.name}</td>
+      <td style="padding: 10px; font-family: var(--font-display);">${row.total}</td>
+      <td style="padding: 10px; font-family: var(--font-display); color: var(--success);">${row.memorized}</td>
+      <td style="padding: 10px; font-family: var(--font-display); color: var(--danger);">${row.unmemorized}</td>
+      <td style="padding: 10px; font-family: var(--font-display); color: var(--warning);">${row.starred}</td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 function renderCustomWordsTable() {
-  const customs = vocabList.filter(w => w.isCustom);
+  const customs = vocabList.filter(w => w.isCustom && w.category === activeCustomList);
   customWordsList.innerHTML = '';
 
   if (customs.length === 0) {
     customWordsList.innerHTML = `
       <tr>
-        <td colspan="5" class="table-empty">Chưa có từ nào tự thêm. Hãy điền form bên trái để thêm!</td>
+        <td colspan="5" class="table-empty">Chưa có từ nào trong danh sách "${activeCustomList}". Hãy điền form bên trái để thêm!</td>
       </tr>
     `;
     return;
@@ -440,14 +553,22 @@ function renderCustomWordsTable() {
 }
 
 // --- FILTERING LOGIC ---
-function applyFilters() {
+function applyFilters(preserveIndex = false) {
+  const previousWordId = (filteredList.length > 0 && currentIndex < filteredList.length) ? filteredList[currentIndex].id : null;
+
   filteredList = vocabList.filter(w => {
+    // If studying a specific custom list, show only custom words in that list
+    if (studyCustomCategory) {
+      return w.isCustom && w.category === studyCustomCategory;
+    }
+
     // 1. Level Filter
     if (activeLevel !== 'all' && w.level.toString() !== activeLevel) return false;
 
     // 2. Status Filter
     if (activeStatus === 'memorized' && !w.isMemorized) return false;
     if (activeStatus === 'unmemorized' && w.isMemorized) return false;
+    if (activeStatus === 'wrong' && !w.isWrong) return false;
     if (activeStatus === 'starred' && !w.isStarred) return false;
     if (activeStatus === 'custom' && !w.isCustom) return false;
 
@@ -463,8 +584,20 @@ function applyFilters() {
     return true;
   });
 
-  // Reset index on filter change
-  currentIndex = 0;
+  // Handle Index Preservation
+  if (preserveIndex && previousWordId) {
+    const newIndex = filteredList.findIndex(w => w.id === previousWordId);
+    if (newIndex !== -1) {
+      currentIndex = newIndex;
+    } else {
+      if (currentIndex >= filteredList.length) {
+        currentIndex = 0;
+      }
+    }
+  } else {
+    currentIndex = 0;
+  }
+
   isFlipped = false;
   cardElement.classList.remove('flipped');
   renderActiveCard();
@@ -768,6 +901,153 @@ function setupEventListeners() {
       }
     }
   });
+
+  // Toggling Detailed Stats Panel
+  const toggleStatsBtn = document.getElementById('toggle-detailed-stats');
+  const statsPanel = document.getElementById('detailed-stats-panel');
+  if (toggleStatsBtn && statsPanel) {
+    toggleStatsBtn.addEventListener('click', () => {
+      const isHidden = statsPanel.style.display === 'none';
+      statsPanel.style.display = isHidden ? 'block' : 'none';
+      toggleStatsBtn.innerHTML = isHidden 
+        ? '<i class="fa-solid fa-chart-simple"></i> Ẩn bảng thống kê'
+        : '<i class="fa-solid fa-chart-simple"></i> Xem bảng thống kê chi tiết';
+    });
+  }
+
+  // Segmented Study Mode Toggles
+  const modeFlipBtn = document.getElementById('mode-flip-btn');
+  const modeTypeBtn = document.getElementById('mode-type-btn');
+  if (modeFlipBtn && modeTypeBtn) {
+    modeFlipBtn.addEventListener('click', () => setStudyMode('flip'));
+    modeTypeBtn.addEventListener('click', () => setStudyMode('type'));
+  }
+
+  // Typing Practice Controls
+  const typeInput = document.getElementById('type-answer-input');
+  if (typeInput) {
+    typeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleTypingCheck();
+      }
+    });
+  }
+
+  const typeCheckBtn = document.getElementById('type-check-btn');
+  if (typeCheckBtn) {
+    typeCheckBtn.addEventListener('click', handleTypingCheck);
+  }
+
+  const typeHintBtn = document.getElementById('type-hint-pinyin-btn');
+  if (typeHintBtn) {
+    typeHintBtn.addEventListener('click', () => {
+      if (filteredList.length === 0) return;
+      const current = filteredList[currentIndex];
+      typeHintBtn.innerHTML = `<i class="fa-solid fa-eye"></i> Pinyin: ${current.pinyin}`;
+      typeHintBtn.disabled = true;
+    });
+  }
+
+  const typeRevealBtn = document.getElementById('type-reveal-btn');
+  if (typeRevealBtn) {
+    typeRevealBtn.addEventListener('click', () => {
+      if (filteredList.length === 0) return;
+      const current = filteredList[currentIndex];
+      isTypingAnswerFinished = true;
+      const input = document.getElementById('type-answer-input');
+      if (input) {
+        input.value = current.word;
+        input.disabled = true;
+      }
+      const feedback = document.getElementById('type-feedback-msg');
+      if (feedback) {
+        feedback.textContent = 'Đã hiện đáp án.';
+        feedback.style.color = 'var(--text-muted)';
+      }
+      showRevealedDetails(current);
+      const checkBtn = document.getElementById('type-check-btn');
+      if (checkBtn) checkBtn.innerHTML = 'Tiếp tục <i class="fa-solid fa-chevron-right"></i>';
+    });
+  }
+
+  const typeSpeakBtn = document.getElementById('type-speak-btn');
+  if (typeSpeakBtn) {
+    typeSpeakBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (filteredList.length > 0) speakText(filteredList[currentIndex].word);
+    });
+  }
+
+  const typeSpeakExBtn = document.getElementById('type-speak-example-btn');
+  if (typeSpeakExBtn) {
+    typeSpeakExBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (filteredList.length > 0 && filteredList[currentIndex].example_zh) {
+        speakText(filteredList[currentIndex].example_zh);
+      }
+    });
+  }
+
+  // Mistake Notebook Dashboard review button
+  const practiceMistakesBtn = document.getElementById('practice-mistakes-btn');
+  if (practiceMistakesBtn) {
+    practiceMistakesBtn.addEventListener('click', () => {
+      activeLevel = 'all';
+      levelTabsContainer.querySelectorAll('.level-tab').forEach(t => {
+        t.classList.toggle('active', t.getAttribute('data-level') === 'all');
+      });
+      activeStatus = 'wrong';
+      statusFilterSelect.value = 'wrong';
+      studyCustomCategory = null;
+      stopAutoplay();
+      applyFilters();
+      const flashcardSection = document.getElementById('flashcard-section');
+      if (flashcardSection) flashcardSection.scrollIntoView({ behavior: 'smooth' });
+      showToast('Đang tải danh sách từ vựng làm sai!');
+    });
+  }
+
+  // Custom lists Manager events
+  const addListBtn = document.getElementById('add-list-btn');
+  const newListInput = document.getElementById('new-list-name-input');
+  if (addListBtn && newListInput) {
+    const createList = () => {
+      const name = newListInput.value.trim();
+      if (name === '') {
+        showToast('Vui lòng nhập tên danh sách!', true);
+        return;
+      }
+      if (customLists.includes(name)) {
+        showToast('Danh sách này đã tồn tại!', true);
+        return;
+      }
+      customLists.push(name);
+      const userKey = currentUser ? currentUser.email : 'guest';
+      localStorage.setItem(`custom_lists_${userKey}`, JSON.stringify(customLists));
+      newListInput.value = '';
+      renderCustomLists();
+      selectCustomList(name);
+      showToast(`Đã tạo danh sách: ${name}!`);
+    };
+    addListBtn.addEventListener('click', createList);
+    newListInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        createList();
+      }
+    });
+  }
+
+  const categorySelect = document.getElementById('input-category-select');
+  if (categorySelect) {
+    categorySelect.addEventListener('change', (e) => {
+      const name = e.target.value;
+      if (customLists.includes(name)) {
+        selectCustomList(name);
+      }
+    });
+  }
 }
 
 // --- AUTHENTICATION & LOGIN LOGIC ---
@@ -1660,3 +1940,404 @@ function initExams() {
     });
   }
 }
+
+// --- NEW HELPER FUNCTIONS FOR STATS, TYPING MODE & CUSTOM LISTS ---
+
+function setStudyMode(mode) {
+  studyMode = mode;
+  const modeFlipBtn = document.getElementById('mode-flip-btn');
+  const modeTypeBtn = document.getElementById('mode-type-btn');
+  
+  if (modeFlipBtn && modeTypeBtn) {
+    if (mode === 'flip') {
+      modeFlipBtn.classList.add('active-mode');
+      modeFlipBtn.style.background = 'var(--accent-blue)';
+      modeFlipBtn.style.color = 'white';
+      
+      modeTypeBtn.classList.remove('active-mode');
+      modeTypeBtn.style.background = 'transparent';
+      modeTypeBtn.style.color = 'var(--text-secondary)';
+      
+      document.getElementById('flashcard-card').style.display = 'block';
+      document.getElementById('typing-card-container').style.display = 'none';
+    } else {
+      modeTypeBtn.classList.add('active-mode');
+      modeTypeBtn.style.background = 'var(--accent-blue)';
+      modeTypeBtn.style.color = 'white';
+      
+      modeFlipBtn.classList.remove('active-mode');
+      modeFlipBtn.style.background = 'transparent';
+      modeFlipBtn.style.color = 'var(--text-secondary)';
+      
+      document.getElementById('flashcard-card').style.display = 'none';
+      document.getElementById('typing-card-container').style.display = 'flex';
+    }
+  }
+  
+  stopAutoplay();
+  renderActiveCard();
+}
+
+function initCustomLists() {
+  const userKey = currentUser ? currentUser.email : 'guest';
+  const savedLists = localStorage.getItem(`custom_lists_${userKey}`);
+  if (savedLists) {
+    try {
+      customLists = JSON.parse(savedLists);
+    } catch (e) {
+      customLists = ['Mặc định'];
+    }
+  } else {
+    customLists = ['Mặc định'];
+  }
+
+  // Auto-collect categories from loaded custom words
+  const customWords = vocabList.filter(w => w.isCustom);
+  customWords.forEach(w => {
+    const cat = w.category || 'Mặc định';
+    if (!customLists.includes(cat)) {
+      customLists.push(cat);
+    }
+  });
+
+  if (!customLists.includes('Mặc định')) {
+    customLists.unshift('Mặc định');
+  }
+
+  if (!customLists.includes(activeCustomList)) {
+    activeCustomList = customLists[0] || 'Mặc định';
+  }
+}
+
+function renderCustomLists() {
+  const container = document.getElementById('custom-lists-pill-container');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  customLists.forEach(name => {
+    const count = vocabList.filter(w => w.isCustom && w.category === name).length;
+
+    const pill = document.createElement('div');
+    pill.className = 'list-pill';
+    if (name === activeCustomList) {
+      pill.classList.add('active-list');
+    }
+
+    const isDefault = name === 'Mặc định';
+    const deleteHtml = isDefault
+      ? ''
+      : `<button class="list-action-btn delete-btn" data-name="${name}" title="Xóa danh sách"><i class="fa-solid fa-trash-can"></i></button>`;
+
+    pill.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="fa-regular fa-folder" style="color: ${name === activeCustomList ? 'var(--accent-blue)' : 'inherit'};"></i>
+        <span class="list-name-text">${name}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="list-word-count">${count}</span>
+        <div class="list-pill-actions">
+          <button class="list-action-btn study-btn" data-name="${name}" title="Học danh sách này"><i class="fa-solid fa-graduation-cap"></i></button>
+          ${deleteHtml}
+        </div>
+      </div>
+    `;
+
+    pill.addEventListener('click', (e) => {
+      if (e.target.closest('.list-action-btn')) return;
+      selectCustomList(name);
+    });
+
+    pill.querySelector('.study-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      studyCustomList(name);
+    });
+
+    const delBtn = pill.querySelector('.delete-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteCustomList(name);
+      });
+    }
+
+    container.appendChild(pill);
+  });
+
+  updateCategorySelectOptions();
+}
+
+function selectCustomList(name) {
+  activeCustomList = name;
+
+  const formTitle = document.getElementById('custom-form-title');
+  const listTitle = document.getElementById('custom-list-title');
+  if (formTitle) formTitle.innerHTML = `<i class="fa-solid fa-plus-circle text-primary"></i> Thêm vào: ${name}`;
+  if (listTitle) listTitle.innerHTML = `<i class="fa-solid fa-list-check text-success"></i> Danh sách: ${name}`;
+
+  renderCustomLists();
+  renderCustomWordsTable();
+}
+
+function studyCustomList(name) {
+  studyCustomCategory = name;
+
+  // Clear level tabs active states
+  const levelTabsContainer = document.getElementById('level-tabs');
+  if (levelTabsContainer) {
+    levelTabsContainer.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
+  }
+  
+  const statusFilterSelect = document.getElementById('status-filter');
+  if (statusFilterSelect) {
+    statusFilterSelect.value = 'custom';
+  }
+  activeStatus = 'custom';
+
+  applyFilters();
+
+  const flashcardSection = document.getElementById('flashcard-section');
+  if (flashcardSection) {
+    flashcardSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  showToast(`Đang học danh sách: ${name}! 📝`);
+}
+
+function deleteCustomList(name) {
+  if (name === 'Mặc định') return;
+  if (!confirm(`Bạn có chắc chắn muốn xóa danh sách từ vựng "${name}"? Tất cả từ vựng trong danh sách này sẽ bị xóa khỏi cơ sở dữ liệu.`)) return;
+
+  const wordsToMigrate = vocabList.filter(w => w.isCustom && w.category === name);
+
+  Promise.all(wordsToMigrate.map(w => {
+    return fetch(API_BASE_URL + '/api/vocabulary/' + w.id, { method: 'DELETE' })
+      .catch(err => console.error("Error deleting word during list delete:", err));
+  })).then(() => {
+    customLists = customLists.filter(l => l !== name);
+    const userKey = currentUser ? currentUser.email : 'guest';
+    localStorage.setItem(`custom_lists_${userKey}`, JSON.stringify(customLists));
+
+    vocabList = vocabList.filter(w => !(w.isCustom && w.category === name));
+
+    if (activeCustomList === name) {
+      activeCustomList = 'Mặc định';
+    }
+
+    if (studyCustomCategory === name) {
+      studyCustomCategory = null;
+    }
+
+    selectCustomList(activeCustomList);
+    updateStats();
+    applyFilters();
+    showToast(`Đã xóa danh sách: ${name}`);
+  });
+}
+
+function updateCategorySelectOptions() {
+  const select = document.getElementById('input-category-select');
+  if (!select) return;
+  select.innerHTML = '';
+  customLists.forEach(list => {
+    const opt = document.createElement('option');
+    opt.value = list;
+    opt.textContent = list;
+    if (list === activeCustomList) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  });
+}
+
+function renderActiveCardTyping(current) {
+  const typeLevel = document.getElementById('type-card-level');
+  const typeCategory = document.getElementById('type-card-category');
+  const typeMeaning = document.getElementById('type-card-meaning');
+  
+  if (typeLevel) typeLevel.textContent = current.isCustom ? 'Cá nhân' : `HSK ${current.level}`;
+  if (typeCategory) typeCategory.textContent = current.category || 'Chưa phân loại';
+  if (typeMeaning) typeMeaning.textContent = current.meaning;
+
+  // Reset states
+  typingAttempts = 3;
+  isTypingAnswerFinished = false;
+
+  // Reset dots styling
+  [1, 2, 3].forEach(d => {
+    const dot = document.getElementById(`attempt-dot-${d}`);
+    if (dot) {
+      dot.className = 'attempt-dot active-dot';
+    }
+  });
+
+  const input = document.getElementById('type-answer-input');
+  if (input) {
+    input.value = '';
+    input.disabled = false;
+    input.className = '';
+  }
+
+  const feedback = document.getElementById('type-feedback-msg');
+  if (feedback) {
+    feedback.textContent = '';
+    feedback.className = '';
+  }
+
+  const details = document.getElementById('type-revealed-details');
+  if (details) {
+    details.style.display = 'none';
+  }
+
+  const hintBtn = document.getElementById('type-hint-pinyin-btn');
+  if (hintBtn) {
+    hintBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Gợi ý Pinyin';
+    hintBtn.disabled = false;
+  }
+
+  const checkBtn = document.getElementById('type-check-btn');
+  if (checkBtn) {
+    checkBtn.innerHTML = 'Kiểm tra';
+  }
+}
+
+function handleTypingCheck() {
+  if (filteredList.length === 0) return;
+  const current = filteredList[currentIndex];
+
+  if (isTypingAnswerFinished) {
+    nextCard();
+    return;
+  }
+
+  const input = document.getElementById('type-answer-input');
+  const feedback = document.getElementById('type-feedback-msg');
+  const checkBtn = document.getElementById('type-check-btn');
+
+  if (!input || !feedback) return;
+
+  const answer = input.value.trim().toLowerCase();
+  const correctAnswer = current.word.trim();
+
+  if (answer === '') {
+    feedback.textContent = 'Vui lòng nhập câu trả lời!';
+    feedback.style.color = 'var(--warning)';
+    return;
+  }
+
+  if (answer === correctAnswer) {
+    isTypingAnswerFinished = true;
+    input.disabled = true;
+    input.className = 'correct-glow';
+
+    feedback.textContent = 'Chính xác! 🎉';
+    feedback.style.color = 'var(--success)';
+
+    speakText(current.word);
+
+    if (!current.isMemorized) {
+      toggleWordMemorized(current.id);
+    }
+
+    if (current.isWrong) {
+      setWordWrong(current.id, false);
+    }
+
+    showRevealedDetails(current);
+
+    if (checkBtn) checkBtn.innerHTML = 'Tiếp tục <i class="fa-solid fa-chevron-right"></i>';
+  } else {
+    typingAttempts--;
+
+    input.classList.remove('shake');
+    void input.offsetWidth; // Trigger reflow to restart animation
+    input.classList.add('shake');
+
+    input.className = 'incorrect-glow';
+    setTimeout(() => {
+      if (!isTypingAnswerFinished) {
+        input.className = '';
+      }
+    }, 500);
+
+    const activeDots = document.querySelectorAll('.attempts-indicator .attempt-dot.active-dot');
+    if (activeDots.length > 0) {
+      activeDots[activeDots.length - 1].classList.remove('active-dot');
+    }
+
+    if (typingAttempts > 0) {
+      feedback.textContent = `Chưa đúng! Bạn còn ${typingAttempts} lượt thử.`;
+      feedback.style.color = 'var(--danger)';
+    } else {
+      isTypingAnswerFinished = true;
+      input.disabled = true;
+      input.className = 'incorrect-glow';
+
+      feedback.textContent = `Sai rồi! Lượt học đã kết thúc.`;
+      feedback.style.color = 'var(--danger)';
+
+      if (current.isMemorized) {
+        toggleWordMemorized(current.id);
+      }
+
+      if (!current.isWrong) {
+        setWordWrong(current.id, true);
+      }
+
+      showRevealedDetails(current);
+
+      if (checkBtn) checkBtn.innerHTML = 'Tiếp tục <i class="fa-solid fa-chevron-right"></i>';
+    }
+  }
+}
+
+function showRevealedDetails(current) {
+  const details = document.getElementById('type-revealed-details');
+  if (!details) return;
+
+  const typeRevWord = document.getElementById('type-revealed-word');
+  const typeRevPinyin = document.getElementById('type-revealed-pinyin');
+  
+  if (typeRevWord) typeRevWord.textContent = current.word;
+  if (typeRevPinyin) typeRevPinyin.textContent = current.pinyin;
+
+  const exBox = document.getElementById('type-revealed-example-box');
+  const exZh = document.getElementById('type-revealed-example-zh');
+  const exVi = document.getElementById('type-revealed-example-vi');
+  
+  if (current.example_zh) {
+    if (exZh) exZh.textContent = current.example_zh;
+    if (exVi) exVi.textContent = current.example_vi || '';
+    if (exBox) exBox.style.display = 'block';
+  } else {
+    if (exBox) exBox.style.display = 'none';
+  }
+
+  details.style.display = 'flex';
+}
+
+async function setWordWrong(id, isWrong) {
+  try {
+    const response = await fetch(API_BASE_URL + '/api/vocabulary/set-wrong', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, isWrong })
+    });
+    if (!response.ok) throw new Error('Lỗi cập nhật trạng thái sai');
+    const updatedWord = await response.json();
+
+    const index = vocabList.findIndex(w => w.id === updatedWord.id);
+    if (index !== -1) {
+      vocabList[index] = updatedWord;
+      updateStats();
+    }
+  } catch (error) {
+    console.error('API Error:', error);
+    const index = vocabList.findIndex(w => w.id === id);
+    if (index !== -1) {
+      vocabList[index].isWrong = isWrong;
+      updateStats();
+    }
+  }
+}
+
