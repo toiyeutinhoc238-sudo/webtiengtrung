@@ -258,20 +258,23 @@ async function fetchVocabulary() {
 }
 
 async function toggleWordMemorized(id) {
+  const index = vocabList.findIndex(w => w.id === id);
+  if (index === -1) return;
+
+  const oldMemorized = vocabList[index].isMemorized;
+  const nextState = !oldMemorized;
+
+  // Optimistic update
+  vocabList[index].isMemorized = nextState;
+  updateStats();
+  applyFilters(true);
+  showToast(nextState ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
+
   if (!currentUser) {
-    const index = vocabList.findIndex(w => w.id === id);
-    if (index !== -1) {
-      vocabList[index].isMemorized = !vocabList[index].isMemorized;
-      
-      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
-      if (!guestProgress[id]) guestProgress[id] = {};
-      guestProgress[id].isMemorized = vocabList[index].isMemorized;
-      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-      
-      updateStats();
-      applyFilters(true);
-      showToast(vocabList[index].isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
-    }
+    const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+    if (!guestProgress[id]) guestProgress[id] = {};
+    guestProgress[id].isMemorized = nextState;
+    localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
     return;
   }
 
@@ -283,55 +286,62 @@ async function toggleWordMemorized(id) {
       credentials: 'include'
     });
     if (response.status === 401) {
+      // Rollback optimistic state
+      vocabList[index].isMemorized = oldMemorized;
+      updateStats();
+      applyFilters(true);
+
       localStorage.removeItem('user');
       localStorage.removeItem('session_token');
       currentUser = null;
       renderUserProfile();
       showToast('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', true);
-      const index = vocabList.findIndex(w => w.id === id);
-      if (index !== -1) {
-        vocabList[index].isMemorized = !vocabList[index].isMemorized;
-        const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
-        if (!guestProgress[id]) guestProgress[id] = {};
-        guestProgress[id].isMemorized = vocabList[index].isMemorized;
-        localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-        updateStats();
-        applyFilters(true);
-      }
+      
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      if (!guestProgress[id]) guestProgress[id] = {};
+      guestProgress[id].isMemorized = !oldMemorized;
+      vocabList[index].isMemorized = !oldMemorized;
+      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+      updateStats();
+      applyFilters(true);
       return;
     }
     if (!response.ok) throw new Error('Lỗi cập nhật trạng thái');
     const updatedWord = await response.json();
 
-    // Update local state
-    const index = vocabList.findIndex(w => w.id === updatedWord.id);
-    if (index !== -1) {
-      vocabList[index] = { ...vocabList[index], ...updatedWord };
-      updateStats();
-      applyFilters(true);
-      showToast(updatedWord.isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
-    }
+    // Confirm local state matches server
+    Object.assign(vocabList[index], updatedWord);
+    updateStats();
+    applyFilters(true);
   } catch (error) {
     console.error('API Error:', error);
-    showToast('Lỗi cập nhật trạng thái!', true);
+    showToast('Lỗi cập nhật trạng thái từ máy chủ!', true);
+    
+    // Rollback state on error
+    vocabList[index].isMemorized = oldMemorized;
+    updateStats();
+    applyFilters(true);
   }
 }
 
 async function toggleWordStarred(id) {
+  const index = vocabList.findIndex(w => w.id === id);
+  if (index === -1) return;
+
+  const oldStarred = vocabList[index].isStarred;
+  const nextState = !oldStarred;
+
+  // Optimistic update
+  vocabList[index].isStarred = nextState;
+  updateStats();
+  applyFilters(true);
+  showToast(nextState ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
+
   if (!currentUser) {
-    const index = vocabList.findIndex(w => w.id === id);
-    if (index !== -1) {
-      vocabList[index].isStarred = !vocabList[index].isStarred;
-      
-      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
-      if (!guestProgress[id]) guestProgress[id] = {};
-      guestProgress[id].isStarred = vocabList[index].isStarred;
-      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-      
-      updateStats();
-      applyFilters(true);
-      showToast(vocabList[index].isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
-    }
+    const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+    if (!guestProgress[id]) guestProgress[id] = {};
+    guestProgress[id].isStarred = nextState;
+    localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
     return;
   }
 
@@ -343,37 +353,41 @@ async function toggleWordStarred(id) {
       credentials: 'include'
     });
     if (response.status === 401) {
+      // Rollback optimistic state
+      vocabList[index].isStarred = oldStarred;
+      updateStats();
+      applyFilters(true);
+
       localStorage.removeItem('user');
       localStorage.removeItem('session_token');
       currentUser = null;
       renderUserProfile();
       showToast('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', true);
-      const index = vocabList.findIndex(w => w.id === id);
-      if (index !== -1) {
-        vocabList[index].isStarred = !vocabList[index].isStarred;
-        const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
-        if (!guestProgress[id]) guestProgress[id] = {};
-        guestProgress[id].isStarred = vocabList[index].isStarred;
-        localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-        updateStats();
-        applyFilters(true);
-      }
+      
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      if (!guestProgress[id]) guestProgress[id] = {};
+      guestProgress[id].isStarred = !oldStarred;
+      vocabList[index].isStarred = !oldStarred;
+      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+      updateStats();
+      applyFilters(true);
       return;
     }
     if (!response.ok) throw new Error('Lỗi cập nhật yêu thích');
     const updatedWord = await response.json();
 
-    // Update local state
-    const index = vocabList.findIndex(w => w.id === updatedWord.id);
-    if (index !== -1) {
-      vocabList[index] = { ...vocabList[index], ...updatedWord };
-      updateStats();
-      applyFilters(true);
-      showToast(updatedWord.isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
-    }
+    // Confirm local state matches server
+    Object.assign(vocabList[index], updatedWord);
+    updateStats();
+    applyFilters(true);
   } catch (error) {
     console.error('API Error:', error);
-    showToast('Lỗi cập nhật yêu thích!', true);
+    showToast('Lỗi cập nhật yêu thích từ máy chủ!', true);
+
+    // Rollback state on error
+    vocabList[index].isStarred = oldStarred;
+    updateStats();
+    applyFilters(true);
   }
 }
 
@@ -2738,7 +2752,7 @@ async function setWordWrong(id, isWrong) {
 
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
-      vocabList[index] = { ...vocabList[index], ...updatedWord };
+      Object.assign(vocabList[index], updatedWord);
       updateStats();
     }
   } catch (error) {

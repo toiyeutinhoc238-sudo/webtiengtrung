@@ -691,9 +691,15 @@ a {
   color: #1e1b1b !important;
 }
 
-.star-row-btn:hover {
+.star-row-btn.active:hover {
   background-color: var(--warning) !important;
   color: #1e1b1b !important;
+  opacity: 0.9;
+}
+
+.star-row-btn:hover:not(.active) {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  color: var(--warning) !important;
 }
 
 .check-row-btn {
@@ -706,9 +712,15 @@ a {
   color: white !important;
 }
 
-.check-row-btn:hover {
+.check-row-btn.active:hover {
   background-color: var(--success) !important;
   color: white !important;
+  opacity: 0.9;
+}
+
+.check-row-btn:hover:not(.active) {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  color: var(--success) !important;
 }
 
 .speak-row-btn:hover {

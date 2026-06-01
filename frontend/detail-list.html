@@ -625,18 +625,19 @@
       const idx = vocabList.findIndex(w => w.id === id);
       if (idx === -1) return;
       
-      const nextState = !vocabList[idx].isMemorized;
+      const oldMemorized = vocabList[idx].isMemorized;
+      const nextState = !oldMemorized;
 
       // Optimistic update
       vocabList[idx].isMemorized = nextState;
-      btn.classList.toggle('active', nextState);
+      applyFilters();
+      showToast(nextState ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
       
       if (!currentUser) {
         const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
         if (!guestProgress[id]) guestProgress[id] = {};
         guestProgress[id].isMemorized = nextState;
         localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-        showToast(nextState ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
         return;
       }
 
@@ -649,22 +650,35 @@
         });
         
         if (response.status === 401) {
-          // Token expired, clear auth
+          // Rollback local state
+          vocabList[idx].isMemorized = oldMemorized;
+          applyFilters();
+
           localStorage.removeItem('user');
           localStorage.removeItem('session_token');
           currentUser = null;
           showToast('Phiên làm việc đã hết hạn. Đang chạy chế độ khách...', true);
+          
+          const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+          if (!guestProgress[id]) guestProgress[id] = {};
+          guestProgress[id].isMemorized = !oldMemorized;
+          vocabList[idx].isMemorized = !oldMemorized;
+          localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+          applyFilters();
           return;
         }
 
         if (!response.ok) throw new Error();
         const updated = await response.json();
-        vocabList[idx] = { ...vocabList[idx], ...updated };
-        btn.classList.toggle('active', vocabList[idx].isMemorized);
-        showToast(vocabList[idx].isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
+        Object.assign(vocabList[idx], updated);
+        applyFilters();
       } catch (err) {
         console.error(err);
         showToast('Lỗi đồng bộ trạng thái!', true);
+        
+        // Rollback state on error
+        vocabList[idx].isMemorized = oldMemorized;
+        applyFilters();
       }
     }
 
@@ -672,18 +686,19 @@
       const idx = vocabList.findIndex(w => w.id === id);
       if (idx === -1) return;
       
-      const nextState = !vocabList[idx].isStarred;
+      const oldStarred = vocabList[idx].isStarred;
+      const nextState = !oldStarred;
 
       // Optimistic update
       vocabList[idx].isStarred = nextState;
-      btn.classList.toggle('active', nextState);
+      applyFilters();
+      showToast(nextState ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
       
       if (!currentUser) {
         const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
         if (!guestProgress[id]) guestProgress[id] = {};
         guestProgress[id].isStarred = nextState;
         localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
-        showToast(nextState ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
         return;
       }
 
@@ -696,21 +711,35 @@
         });
         
         if (response.status === 401) {
+          // Rollback local state
+          vocabList[idx].isStarred = oldStarred;
+          applyFilters();
+
           localStorage.removeItem('user');
           localStorage.removeItem('session_token');
           currentUser = null;
           showToast('Phiên làm việc đã hết hạn. Đang chạy chế độ khách...', true);
+
+          const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+          if (!guestProgress[id]) guestProgress[id] = {};
+          guestProgress[id].isStarred = !oldStarred;
+          vocabList[idx].isStarred = !oldStarred;
+          localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+          applyFilters();
           return;
         }
 
         if (!response.ok) throw new Error();
         const updated = await response.json();
-        vocabList[idx] = { ...vocabList[idx], ...updated };
-        btn.classList.toggle('active', vocabList[idx].isStarred);
-        showToast(vocabList[idx].isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
+        Object.assign(vocabList[idx], updated);
+        applyFilters();
       } catch (err) {
         console.error(err);
         showToast('Lỗi đồng bộ yêu thích!', true);
+
+        // Rollback state on error
+        vocabList[idx].isStarred = oldStarred;
+        applyFilters();
       }
     }
 
