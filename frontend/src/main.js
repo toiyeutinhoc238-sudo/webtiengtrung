@@ -150,16 +150,26 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  // Link gốc của Youdao
-  const targetUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(text)}&le=zh&keyfrom=speaker-target`;
+  // Link gốc Google Translate siêu chuẩn
+  const targetUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(text)}`;
 
-  // Bọc link gốc qua trạm trung chuyển corsproxy để lách luật bảo mật của trình duyệt
-  const audioUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+  // Bọc qua AllOrigins (trạm trung chuyển cực xịn, cho phép tải MP3 thoải mái)
+  const audioUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
 
   const audio = new Audio(audioUrl);
+
   audio.play().catch(err => {
-    console.error("Lỗi phát âm thanh:", err);
-    showToast("Trình duyệt vẫn chặn hoặc mạng yếu!", true);
+    console.warn("Mạng quá tải, kích hoạt giọng đọc hệ thống:", err);
+    showToast("Đang dùng giọng đọc offline của thiết bị...", false);
+
+    // CỨU CÁNH OFFLINE: Nếu mạng sập, tự động lấy giọng AI của máy tính/điện thoại ra đọc
+    if (typeof speechSynthesis !== 'undefined') {
+      speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN'; // Ép đọc tiếng Trung
+      utterance.rate = 0.85;    // Tốc độ vừa phải
+      speechSynthesis.speak(utterance);
+    }
   });
 }
 
@@ -1366,9 +1376,9 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      const targetUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(q.audioText)}&le=zh&keyfrom=speaker-target`;
-      // Bọc qua corsproxy
-      examAudioPlayer.src = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      // Dùng AllOrigins + Google Translate cho phần câu hỏi thi
+      const targetUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(q.audioText)}`;
+      examAudioPlayer.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
     }
   } else {
     audioContainer.style.display = 'none';
