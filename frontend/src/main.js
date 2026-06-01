@@ -150,13 +150,13 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  // Gọi trực tiếp API âm thanh của từ điển Youdao (chuyên tiếng Trung)
-  const audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=zh`;
+  // Đổi sang Google Translate TTS để đọc được cả câu dài và từ đơn
+  const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(text)}`;
   const audio = new Audio(audioUrl);
 
   audio.play().catch(err => {
     console.error("Lỗi phát âm thanh:", err);
-    showToast("Trình duyệt đang chặn âm thanh, thử click vào trang web trước nhé!", true);
+    showToast("Trình duyệt chặn âm thanh, hãy thử click vào trang web trước!", true);
   });
 }
 
@@ -1363,8 +1363,8 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      // Gắn thẳng link Youdao vào audio player của bài thi
-      examAudioPlayer.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(q.audioText)}&le=zh`;
+      // Dùng Google Translate TTS cho phần thi
+      examAudioPlayer.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(q.audioText)}`;
     }
   } else {
     audioContainer.style.display = 'none';
