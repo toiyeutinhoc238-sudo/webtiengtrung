@@ -150,9 +150,12 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  // Đổi sang Google Translate TTS để đọc được cả câu dài và từ đơn
   const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(text)}`;
-  const audio = new Audio(audioUrl);
+
+  // Tạo thẻ audio ẩn và dùng tuyệt chiêu "giấu tung tích"
+  const audio = document.createElement('audio');
+  audio.src = audioUrl;
+  audio.referrerPolicy = 'no-referrer'; // Dòng này sẽ lừa Google chặn!
 
   audio.play().catch(err => {
     console.error("Lỗi phát âm thanh:", err);
@@ -1363,8 +1366,9 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      // Dùng Google Translate TTS cho phần thi
       examAudioPlayer.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(q.audioText)}`;
+      // Thêm dòng này vào để giấu Referer cho phần thi thử
+      examAudioPlayer.referrerPolicy = 'no-referrer';
     }
   } else {
     audioContainer.style.display = 'none';
