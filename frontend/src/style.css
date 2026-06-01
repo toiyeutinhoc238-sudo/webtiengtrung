@@ -2097,3 +2097,14 @@ html:not(.dark) .list-pill:hover {
   }
 }
 
+/* Typing Mode Active Layout Tweaks */
+.card-viewport.typing-mode-active .flashcard-card-container {
+  height: 460px !important;
+}
+
+.card-viewport.typing-mode-active #mark-memorized-btn,
+.card-viewport.typing-mode-active #mark-starred-btn {
+  display: none !important;
+}
+
+

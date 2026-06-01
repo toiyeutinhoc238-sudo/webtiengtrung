@@ -12,7 +12,9 @@ let activeStatus = 'all'; // Status filter state: 'all', 'unmemorized', 'memoriz
 let searchQuery = '';     // Search query string
 let chineseVoice = null;  // Reference to Web Speech Chinese voice object
 let currentUser = null;   // Active authenticated user profile
-const API_BASE_URL = 'https://webtiengtrung.onrender.com'; // Thêm dòng này
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === ''
+  ? 'http://localhost:5000'
+  : 'https://webtiengtrung.onrender.com';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id-here.apps.googleusercontent.com';
 
 // --- ENHANCEMENT STATE MANAGEMENT ---
@@ -297,14 +299,14 @@ async function handleAddWordForm(e) {
     vocabList.push(newWord);
 
     addWordForm.reset();
-    
+
     // Auto sync select values
     if (!customLists.includes(category)) {
       customLists.push(category);
       const userKey = currentUser ? currentUser.email : 'guest';
       localStorage.setItem(`custom_lists_${userKey}`, JSON.stringify(customLists));
     }
-    
+
     renderCustomLists();
     selectCustomList(category);
     updateStats();
@@ -909,7 +911,7 @@ function setupEventListeners() {
     toggleStatsBtn.addEventListener('click', () => {
       const isHidden = statsPanel.style.display === 'none';
       statsPanel.style.display = isHidden ? 'block' : 'none';
-      toggleStatsBtn.innerHTML = isHidden 
+      toggleStatsBtn.innerHTML = isHidden
         ? '<i class="fa-solid fa-chart-simple"></i> Ẩn bảng thống kê'
         : '<i class="fa-solid fa-chart-simple"></i> Xem bảng thống kê chi tiết';
     });
@@ -1947,33 +1949,42 @@ function setStudyMode(mode) {
   studyMode = mode;
   const modeFlipBtn = document.getElementById('mode-flip-btn');
   const modeTypeBtn = document.getElementById('mode-type-btn');
-  
+  const cardViewportEl = document.querySelector('.card-viewport');
+
+  if (cardViewportEl) {
+    if (mode === 'type') {
+      cardViewportEl.classList.add('typing-mode-active');
+    } else {
+      cardViewportEl.classList.remove('typing-mode-active');
+    }
+  }
+
   if (modeFlipBtn && modeTypeBtn) {
     if (mode === 'flip') {
       modeFlipBtn.classList.add('active-mode');
       modeFlipBtn.style.background = 'var(--accent-blue)';
       modeFlipBtn.style.color = 'white';
-      
+
       modeTypeBtn.classList.remove('active-mode');
       modeTypeBtn.style.background = 'transparent';
       modeTypeBtn.style.color = 'var(--text-secondary)';
-      
+
       document.getElementById('flashcard-card').style.display = 'block';
       document.getElementById('typing-card-container').style.display = 'none';
     } else {
       modeTypeBtn.classList.add('active-mode');
       modeTypeBtn.style.background = 'var(--accent-blue)';
       modeTypeBtn.style.color = 'white';
-      
+
       modeFlipBtn.classList.remove('active-mode');
       modeFlipBtn.style.background = 'transparent';
       modeFlipBtn.style.color = 'var(--text-secondary)';
-      
+
       document.getElementById('flashcard-card').style.display = 'none';
       document.getElementById('typing-card-container').style.display = 'flex';
     }
   }
-  
+
   stopAutoplay();
   renderActiveCard();
 }
@@ -2087,7 +2098,7 @@ function studyCustomList(name) {
   if (levelTabsContainer) {
     levelTabsContainer.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
   }
-  
+
   const statusFilterSelect = document.getElementById('status-filter');
   if (statusFilterSelect) {
     statusFilterSelect.value = 'custom';
@@ -2154,7 +2165,7 @@ function renderActiveCardTyping(current) {
   const typeLevel = document.getElementById('type-card-level');
   const typeCategory = document.getElementById('type-card-category');
   const typeMeaning = document.getElementById('type-card-meaning');
-  
+
   if (typeLevel) typeLevel.textContent = current.isCustom ? 'Cá nhân' : `HSK ${current.level}`;
   if (typeCategory) typeCategory.textContent = current.category || 'Chưa phân loại';
   if (typeMeaning) typeMeaning.textContent = current.meaning;
@@ -2297,14 +2308,14 @@ function showRevealedDetails(current) {
 
   const typeRevWord = document.getElementById('type-revealed-word');
   const typeRevPinyin = document.getElementById('type-revealed-pinyin');
-  
+
   if (typeRevWord) typeRevWord.textContent = current.word;
   if (typeRevPinyin) typeRevPinyin.textContent = current.pinyin;
 
   const exBox = document.getElementById('type-revealed-example-box');
   const exZh = document.getElementById('type-revealed-example-zh');
   const exVi = document.getElementById('type-revealed-example-vi');
-  
+
   if (current.example_zh) {
     if (exZh) exZh.textContent = current.example_zh;
     if (exVi) exVi.textContent = current.example_vi || '';
