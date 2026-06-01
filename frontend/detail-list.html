@@ -175,6 +175,31 @@
     .toast-popup.show {
       transform: translateX(-50%) translateY(0);
     }
+
+    .filter-select {
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-glass);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      color: var(--text-primary);
+      outline: none;
+      font-size: 0.9rem;
+      min-width: 160px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    .filter-select:focus {
+      border-color: var(--accent-blue);
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .filter-select option {
+      background-color: #0b0f19;
+      color: var(--text-primary);
+    }
   </style>
 </head>
 <body>
@@ -191,8 +216,8 @@
       </div>
       
       <div style="display: flex; gap: 8px;">
-        <button id="print-btn" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 10px 16px;">
-          <i class="fa-solid fa-print"></i> In danh sách
+        <button id="export-excel-btn" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: rgba(16, 185, 129, 0.15); color: var(--accent-teal); border: 1px solid rgba(16, 185, 129, 0.3);">
+          <i class="fa-solid fa-file-excel"></i> Xuất Excel
         </button>
         <button onclick="window.close()" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: var(--accent-blue); color: white;">
           Đóng cửa sổ
@@ -202,16 +227,32 @@
     
     <!-- Search and Active Filters -->
     <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
-      <div class="search-filter-row">
-        <div class="search-input-wrapper">
+      <div class="search-filter-row" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; width: 100%;">
+        <div class="search-input-wrapper" style="flex-grow: 1; max-width: 400px; position: relative;">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="text" id="detail-search-input" placeholder="Tìm kiếm nhanh trong danh sách này...">
         </div>
         
-        <div class="active-filters-badges">
-          <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Bộ lọc hiện tại:</span>
-          <span id="badge-level" class="filter-badge">Cấp độ: Tất cả</span>
-          <span id="badge-status" class="filter-badge">Trạng thái: Tất cả</span>
+        <div class="filter-controls" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <select id="detail-level-select" class="filter-select">
+            <option value="all">Cấp độ: Tất cả HSK</option>
+            <option value="1">Cấp độ: HSK 1</option>
+            <option value="2">Cấp độ: HSK 2</option>
+            <option value="3">Cấp độ: HSK 3</option>
+            <option value="4">Cấp độ: HSK 4</option>
+            <option value="5">Cấp độ: HSK 5</option>
+            <option value="6">Cấp độ: HSK 6</option>
+          </select>
+
+          <select id="detail-status-select" class="filter-select">
+            <option value="all">Trạng thái: Tất cả</option>
+            <option value="memorized">Trạng thái: Đã học thuộc</option>
+            <option value="unmemorized">Trạng thái: Chưa thuộc</option>
+            <option value="starred">Trạng thái: Yêu thích</option>
+            <option value="wrong">Trạng thái: Từ làm sai</option>
+            <option value="custom">Trạng thái: Từ tự thêm</option>
+          </select>
+
           <span id="badge-custom" class="filter-badge" style="display: none;">Sổ tay cá nhân</span>
         </div>
       </div>
@@ -294,8 +335,8 @@
 
     // Parse URL query parameters to apply filters
     const urlParams = new URLSearchParams(window.location.search);
-    const activeLevel = urlParams.get('level') || 'all';
-    const activeStatus = urlParams.get('status') || 'all';
+    let activeLevel = urlParams.get('level') || 'all';
+    let activeStatus = urlParams.get('status') || 'all';
     const initialSearch = urlParams.get('search') || '';
     const customCategory = urlParams.get('customCategory') || '';
     
@@ -307,38 +348,41 @@
         searchInput.value = initialSearch;
         searchInput.addEventListener('input', handleSearchInput);
       }
+
+      // Initialize dropdown selections
+      const levelSelect = document.getElementById('detail-level-select');
+      if (levelSelect) {
+        levelSelect.value = activeLevel;
+        levelSelect.addEventListener('change', (e) => {
+          activeLevel = e.target.value;
+          applyFilters();
+        });
+      }
+
+      const statusSelect = document.getElementById('detail-status-select');
+      if (statusSelect) {
+        statusSelect.value = activeStatus;
+        statusSelect.addEventListener('change', (e) => {
+          activeStatus = e.target.value;
+          applyFilters();
+        });
+      }
       
-      // Update filters badges UI
+      // Update custom filters badges UI
       updateFiltersBadges();
       
       // Fetch vocabulary data
       fetchVocabulary();
 
-      // Print Button Handler
-      document.getElementById('print-btn').addEventListener('click', () => {
-        window.print();
-      });
+      // Excel Export Button Handler
+      const exportExcelBtn = document.getElementById('export-excel-btn');
+      if (exportExcelBtn) {
+        exportExcelBtn.addEventListener('click', exportToExcel);
+      }
     });
 
     function updateFiltersBadges() {
-      const levelEl = document.getElementById('badge-level');
-      const statusEl = document.getElementById('badge-status');
       const customEl = document.getElementById('badge-custom');
-      
-      if (levelEl) {
-        levelEl.textContent = activeLevel === 'all' ? 'Cấp độ: Tất cả HSK' : `Cấp độ: HSK ${activeLevel}`;
-      }
-      
-      if (statusEl) {
-        let statusText = 'Tất cả trạng thái';
-        if (activeStatus === 'memorized') statusText = 'Trạng thái: Đã học thuộc';
-        if (activeStatus === 'unmemorized') statusText = 'Trạng thái: Chưa thuộc';
-        if (activeStatus === 'starred') statusText = 'Trạng thái: Yêu thích';
-        if (activeStatus === 'wrong') statusText = 'Trạng thái: Từ làm sai';
-        if (activeStatus === 'custom') statusText = 'Trạng thái: Từ tự thêm';
-        statusEl.textContent = statusText;
-      }
-      
       if (customEl) {
         if (customCategory) {
           customEl.textContent = `Sổ tay: ${customCategory}`;
@@ -347,6 +391,56 @@
           customEl.style.display = 'none';
         }
       }
+    }
+
+    function exportToExcel() {
+      const wordsToExport = filteredList;
+      if (wordsToExport.length === 0) {
+        showToast('Không có từ vựng nào để xuất!', true);
+        return;
+      }
+
+      // Prepend UTF-8 BOM \uFEFF so Excel reads Vietnamese/Chinese characters correctly.
+      let csvContent = "Chữ Hán,Pinyin,Nghĩa tiếng Việt,Cấp độ,Học thuộc,Yêu thích\n";
+
+      wordsToExport.forEach(w => {
+        // Escape commas and quotes inside fields to prevent broken CSV columns
+        const escapeCSV = (text) => {
+          if (text === null || text === undefined) return '';
+          let val = text.toString().replace(/"/g, '""'); // escape double quotes
+          if (val.includes(',') || val.includes('\n') || val.includes('"')) {
+            val = `"${val}"`; // wrap in quotes if commas/newlines/quotes exist
+          }
+          return val;
+        };
+
+        const word = escapeCSV(w.word);
+        const pinyin = escapeCSV(w.pinyin);
+        const meaning = escapeCSV(w.meaning);
+        const level = escapeCSV(w.isCustom ? 'Cá nhân' : 'HSK ' + w.level);
+        const memorized = escapeCSV(w.isMemorized ? 'Đã thuộc' : 'Chưa thuộc');
+        const starred = escapeCSV(w.isStarred ? 'Yêu thích' : 'Không');
+
+        csvContent += `${word},${pinyin},${meaning},${level},${memorized},${starred}\n`;
+      });
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      
+      let fileName = 'danh_sach_tu_vung';
+      if (activeLevel !== 'all') fileName += `_hsk${activeLevel}`;
+      if (activeStatus !== 'all') fileName += `_${activeStatus}`;
+      fileName += '.csv';
+      
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Đã xuất danh sách thành công! 📊');
     }
 
     async function fetchVocabulary() {
