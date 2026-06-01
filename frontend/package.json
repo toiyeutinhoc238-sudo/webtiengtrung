@@ -1,0 +1,14 @@
+{
+  "name": "hsk-flashcards-frontend",
+  "version": "1.0.0",
+  "description": "Vite frontend for HSK vocabulary flashcards",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vite": "^5.2.11"
+  }
+}
