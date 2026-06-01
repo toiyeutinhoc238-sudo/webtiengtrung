@@ -148,29 +148,27 @@ function initVoices() {
 function speakText(text) {
   if (!text) return;
 
-  showToast("Đang tải phát âm...", false);
+  // Xóa luôn dòng showToast "Đang tải phát âm..." vì nó đọc ngay lập tức, không cần đợi tải
 
-  // Link gốc Google Translate siêu chuẩn
-  const targetUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(text)}`;
+  if (typeof speechSynthesis !== 'undefined') {
+    // Tắt ngay âm thanh cũ nếu đang đọc dở để các câu không bị đè lên nhau
+    speechSynthesis.cancel();
 
-  // Bọc qua AllOrigins (trạm trung chuyển cực xịn, cho phép tải MP3 thoải mái)
-  const audioUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN'; // Ép đọc tiếng Trung
+    utterance.rate = 0.85;    // Tốc độ vừa phải cho dễ nghe
 
-  const audio = new Audio(audioUrl);
-
-  audio.play().catch(err => {
-    console.warn("Mạng quá tải, kích hoạt giọng đọc hệ thống:", err);
-    showToast("Đang dùng giọng đọc offline của thiết bị...", false);
-
-    // CỨU CÁNH OFFLINE: Nếu mạng sập, tự động lấy giọng AI của máy tính/điện thoại ra đọc
-    if (typeof speechSynthesis !== 'undefined') {
-      speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-CN'; // Ép đọc tiếng Trung
-      utterance.rate = 0.85;    // Tốc độ vừa phải
-      speechSynthesis.speak(utterance);
+    // Lấy danh sách giọng đọc trong máy, ưu tiên chọn giọng tiếng Trung chuẩn nhất
+    const voices = speechSynthesis.getVoices();
+    const chineseVoice = voices.find(voice => voice.lang.includes('zh') || voice.lang.includes('cmn'));
+    if (chineseVoice) {
+      utterance.voice = chineseVoice;
     }
-  });
+
+    speechSynthesis.speak(utterance);
+  } else {
+    showToast("Trình duyệt của bạn không hỗ trợ đọc offline!", true);
+  }
 }
 
 function fallbackSpeakSpeechSynthesis(text) {
@@ -1375,16 +1373,15 @@ function renderActiveQuestion() {
   const examAudioPlayer = document.getElementById('exam-audio-player');
   if (q.audioText) {
     audioContainer.style.display = 'flex';
-    if (examAudioPlayer) {
-      // Dùng AllOrigins + Google Translate cho phần câu hỏi thi
-      const targetUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(q.audioText)}`;
-      examAudioPlayer.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    }
+
+    // Gắn sự kiện: Bấm vào cái loa là gọi thẳng hàm offline, không cần thẻ <audio> nữa
+    audioContainer.onclick = () => {
+      speakText(q.audioText);
+    };
+
   } else {
     audioContainer.style.display = 'none';
-    if (examAudioPlayer) {
-      examAudioPlayer.src = '';
-    }
+    audioContainer.onclick = null; // Gỡ sự kiện click nếu câu hỏi không có âm thanh
   }
 
   document.getElementById('active-question-text').innerHTML = q.question.replace(/\n/g, '<br>');
