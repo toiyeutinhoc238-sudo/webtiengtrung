@@ -150,13 +150,16 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  // Đổi sang dùng API fanyivoice (Dịch thuật) thay vì dictvoice (Từ điển)
-  const audioUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(text)}&le=zh&keyfrom=speaker-target`;
+  // Link gốc của Youdao
+  const targetUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(text)}&le=zh&keyfrom=speaker-target`;
+
+  // Bọc link gốc qua trạm trung chuyển corsproxy để lách luật bảo mật của trình duyệt
+  const audioUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
   const audio = new Audio(audioUrl);
   audio.play().catch(err => {
     console.error("Lỗi phát âm thanh:", err);
-    showToast("Trình duyệt đang chặn âm thanh, thử click vào trang web trước nhé!", true);
+    showToast("Trình duyệt vẫn chặn hoặc mạng yếu!", true);
   });
 }
 
@@ -1363,8 +1366,9 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      // Dùng API Dịch thuật của Youdao cho phần thi
-      examAudioPlayer.src = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(q.audioText)}&le=zh&keyfrom=speaker-target`;
+      const targetUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(q.audioText)}&le=zh&keyfrom=speaker-target`;
+      // Bọc qua corsproxy
+      examAudioPlayer.src = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
     }
   } else {
     audioContainer.style.display = 'none';
