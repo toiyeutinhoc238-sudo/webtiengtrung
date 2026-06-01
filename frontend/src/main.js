@@ -246,7 +246,7 @@ function fallbackSpeakSpeechSynthesis(text) {
 // --- API ACTIONS ---
 async function fetchVocabulary() {
   try {
-    const response = await fetch(${ API_BASE_URL } / api / vocabulary);
+    const response = await fetch(API_BASE_URL + '/api/vocabulary');
     if (!response.ok) throw new Error('Không thể tải từ vựng từ API');
     vocabList = await response.json();
 
@@ -261,7 +261,7 @@ async function fetchVocabulary() {
 
 async function toggleWordMemorized(id) {
   try {
-    const response = await fetch(${ API_BASE_URL } / api / vocabulary / toggle - memorized, {
+    const response = await fetch(API_BASE_URL + '/api/vocabulary/toggle-memorized', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
@@ -285,7 +285,7 @@ async function toggleWordMemorized(id) {
 
 async function toggleWordStarred(id) {
   try {
-    const response = await fetch(${ API_BASE_URL } / api / vocabulary / toggle - starred, {
+    const response = await fetch(API_BASE_URL + '/api/vocabulary/toggle-starred', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
@@ -319,7 +319,7 @@ async function handleAddWordForm(e) {
   const example_vi = document.getElementById('input-example-vi').value.trim();
 
   try {
-    const response = await fetch(${ API_BASE_URL } / api / vocabulary, {
+    const response = await fetch(API_BASE_URL + '/api/vocabulary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -356,7 +356,7 @@ async function handleDeleteCustomWord(id) {
   if (!confirm('Bạn có chắc muốn xóa từ tự thêm này không?')) return;
 
   try {
-    const response = await fetch(${ API_BASE_URL } / api / vocabulary / { id }, {
+    const response = await fetch(API_BASE_URL + '/api/vocabulary/' + id, {
       method: 'DELETE'
     });
 
@@ -826,7 +826,7 @@ function setupEventListeners() {
 async function initAuth() {
   // Check if session is active on backend
   try {
-    const res = await fetch(${ API_BASE_URL } / api / auth / me);
+    const res = await fetch(API_BASE_URL + '/api/auth/me');
     if (res.ok) {
       const data = await res.json();
       if (data.user) {
@@ -894,7 +894,7 @@ function initGoogleSignIn() {
 // Google Sign-In Credential Callback
 async function handleCredentialResponse(response) {
   try {
-    const res = await fetch(${ API_BASE_URL } / api / auth / google, {
+    const res = await fetch(API_BASE_URL + '/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential: response.credential })
@@ -923,7 +923,7 @@ async function handleLogout(e) {
   if (e) e.preventDefault();
 
   try {
-    await fetch(${ API_BASE_URL } / api / auth / logout, { method: 'POST' });
+    await fetch(API_BASE_URL + '/api/auth/logout', { method: 'POST' });
   } catch (err) {
     console.warn('Backend logout call failed, cleaning up client anyway:', err);
   }
