@@ -12,6 +12,7 @@ let activeStatus = 'all'; // Status filter state: 'all', 'unmemorized', 'memoriz
 let searchQuery = '';     // Search query string
 let chineseVoice = null;  // Reference to Web Speech Chinese voice object
 let currentUser = null;   // Active authenticated user profile
+const API_BASE_URL = 'https://webtiengtrung.onrender.com'; // Thêm dòng này
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id-here.apps.googleusercontent.com';
 
 // --- DOM ELEMENTS CACHE ---
@@ -86,8 +87,8 @@ function initTheme() {
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  themeToggleBtn.innerHTML = isDark 
-    ? '<i class="fa-solid fa-moon"></i>' 
+  themeToggleBtn.innerHTML = isDark
+    ? '<i class="fa-solid fa-moon"></i>'
     : '<i class="fa-solid fa-sun"></i>';
   showToast(isDark ? 'Đã chuyển sang chế độ tối' : 'Đã chuyển sang chế độ sáng');
   if (!currentUser && typeof initGoogleSignIn === 'function') {
@@ -98,16 +99,16 @@ function toggleTheme() {
 // --- TEXT TO SPEECH (TTS) SETUP ---
 function initVoices() {
   if (typeof speechSynthesis === 'undefined') return;
-  
+
   const loadVoices = () => {
     const voices = speechSynthesis.getVoices();
     // Clear dropdown
     ttsVoiceSelect.innerHTML = '';
-    
+
     // Look for Chinese voices (Chinese, Mandarin, zh-CN, zh-HK, zh-TW, etc.)
-    const zhVoices = voices.filter(voice => 
-      voice.lang.includes('zh') || 
-      voice.name.toLowerCase().includes('chinese') || 
+    const zhVoices = voices.filter(voice =>
+      voice.lang.includes('zh') ||
+      voice.name.toLowerCase().includes('chinese') ||
       voice.name.toLowerCase().includes('mandarin')
     );
 
@@ -146,7 +147,7 @@ function initVoices() {
 
 function speakText(text) {
   if (!text) return;
-  
+
   // Clean up any SpeechSynthesis speaking
   try {
     if (typeof speechSynthesis !== 'undefined') {
@@ -162,32 +163,32 @@ function speakText(text) {
     : window.location.origin;
 
   const ttsUrl = `${backendHost}/api/tts?text=${encodeURIComponent(text)}`;
-  
+
   try {
     const audio = new Audio();
     audio.crossOrigin = 'anonymous'; // Enable CORS mode for clean cross-port resource sharing
     audio.src = ttsUrl;
     audio.volume = 1.0;
-    
+
     let hasFailed = false;
 
     // Diagnostic playback listeners
     audio.onplay = () => {
       showToast("Bắt đầu phát âm thanh...", false);
     };
-    
+
     audio.onplaying = () => {
       showToast("Đang phát âm thanh...", false);
     };
-    
+
     audio.onwaiting = () => {
       showToast("Đang chờ tải dữ liệu âm thanh...", false);
     };
-    
+
     audio.onstalled = () => {
       showToast("Nguồn phát âm thanh bị nghẽn (stalled)!", true);
     };
-    
+
     audio.onended = () => {
       showToast("Đã phát xong âm thanh! 🎉", false);
     };
@@ -225,7 +226,7 @@ function fallbackSpeakSpeechSynthesis(text) {
     showToast("Thiết bị không hỗ trợ phát âm thanh trực tiếp hoặc gián tiếp!", true);
     return;
   }
-  
+
   try {
     showToast("Đang phát bằng giọng đọc hệ thống thiết bị...", false);
     const utterance = new SpeechSynthesisUtterance(text);
@@ -245,10 +246,10 @@ function fallbackSpeakSpeechSynthesis(text) {
 // --- API ACTIONS ---
 async function fetchVocabulary() {
   try {
-    const response = await fetch('/api/vocabulary');
+    const response = await fetch(${ API_BASE_URL } / api / vocabulary);
     if (!response.ok) throw new Error('Không thể tải từ vựng từ API');
     vocabList = await response.json();
-    
+
     updateStats();
     applyFilters();
     renderCustomWordsTable();
@@ -260,14 +261,14 @@ async function fetchVocabulary() {
 
 async function toggleWordMemorized(id) {
   try {
-    const response = await fetch('/api/vocabulary/toggle-memorized', {
+    const response = await fetch(${ API_BASE_URL } / api / vocabulary / toggle - memorized, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
     });
     if (!response.ok) throw new Error('Lỗi cập nhật trạng thái');
     const updatedWord = await response.json();
-    
+
     // Update local state
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
@@ -284,14 +285,14 @@ async function toggleWordMemorized(id) {
 
 async function toggleWordStarred(id) {
   try {
-    const response = await fetch('/api/vocabulary/toggle-starred', {
+    const response = await fetch(${ API_BASE_URL } / api / vocabulary / toggle - starred, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
     });
     if (!response.ok) throw new Error('Lỗi cập nhật yêu thích');
     const updatedWord = await response.json();
-    
+
     // Update local state
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
@@ -308,7 +309,7 @@ async function toggleWordStarred(id) {
 
 async function handleAddWordForm(e) {
   e.preventDefault();
-  
+
   const word = document.getElementById('input-word').value.trim();
   const pinyin = document.getElementById('input-pinyin').value.trim();
   const meaning = document.getElementById('input-meaning').value.trim();
@@ -318,7 +319,7 @@ async function handleAddWordForm(e) {
   const example_vi = document.getElementById('input-example-vi').value.trim();
 
   try {
-    const response = await fetch('/api/vocabulary', {
+    const response = await fetch(${ API_BASE_URL } / api / vocabulary, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -327,16 +328,16 @@ async function handleAddWordForm(e) {
     });
 
     if (!response.ok) throw new Error('Lỗi khi thêm từ mới');
-    
+
     const newWord = await response.json();
     vocabList.push(newWord);
-    
+
     addWordForm.reset();
     updateStats();
     applyFilters();
     renderCustomWordsTable();
     showToast('Thêm từ mới thành công!');
-    
+
     // Jump to the newly added word if it's shown in the current filters
     const newIndex = filteredList.findIndex(w => w.id === newWord.id);
     if (newIndex !== -1) {
@@ -353,17 +354,17 @@ async function handleAddWordForm(e) {
 
 async function handleDeleteCustomWord(id) {
   if (!confirm('Bạn có chắc muốn xóa từ tự thêm này không?')) return;
-  
+
   try {
-    const response = await fetch(`/api/vocabulary/${id}`, {
+    const response = await fetch(${ API_BASE_URL } / api / vocabulary / { id }, {
       method: 'DELETE'
     });
 
     if (!response.ok) throw new Error('Không thể xóa từ');
-    
+
     // Remove from local state
     vocabList = vocabList.filter(w => w.id !== id);
-    
+
     updateStats();
     applyFilters();
     renderCustomWordsTable();
@@ -405,7 +406,7 @@ function renderActiveCard() {
   cardMeaningBack.textContent = current.meaning;
   cardLevelBack.textContent = `HSK ${current.level}`;
   cardCategoryBack.textContent = current.category || 'Chưa phân loại';
-  
+
   if (current.example_zh) {
     cardExampleZhBack.textContent = current.example_zh;
     cardExampleViBack.textContent = current.example_vi || '';
@@ -534,7 +535,7 @@ function startAutoplay() {
   autoplayBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Tạm dừng chạy';
   autoplayBtn.classList.add('btn-primary');
   autoplayBtn.classList.remove('btn-secondary');
-  
+
   runAutoplayCycle();
 }
 
@@ -558,17 +559,17 @@ function runAutoplayCycle() {
   // 1. Pronounce front word
   if (!isFlipped) {
     speakText(current.word);
-    
+
     // 2. Wait, then flip to back
     autoplayTimer = setTimeout(() => {
       flipCard();
-      
+
       // 3. Wait 1s, then pronounce example (if exists) or just prepare next slide
       autoplayTimer = setTimeout(() => {
         if (current.example_zh) {
           speakText(current.example_zh);
         }
-        
+
         // 4. Wait rest of the duration, then flip back and go to next card
         autoplayTimer = setTimeout(() => {
           nextCard();
@@ -616,7 +617,7 @@ function showToast(message, isError = false) {
   toastElement.textContent = message;
   toastElement.style.borderLeftColor = isError ? 'var(--danger)' : 'var(--accent-blue)';
   toastElement.classList.add('show');
-  
+
   setTimeout(() => {
     toastElement.classList.remove('show');
   }, 2500);
@@ -624,7 +625,7 @@ function showToast(message, isError = false) {
 
 // --- EVENT LISTENERS ---
 function setupEventListeners() {
-  
+
   // Card Flip Click
   cardElement.addEventListener('click', (e) => {
     // Prevent flip if clicking a button inside card actions
@@ -639,7 +640,7 @@ function setupEventListeners() {
     stopAutoplay();
     prevCard();
   });
-  
+
   nextCardBtn.addEventListener('click', () => {
     stopAutoplay();
     nextCard();
@@ -713,14 +714,14 @@ function setupEventListeners() {
       t.classList.toggle('active', t.getAttribute('data-level') === 'all');
     });
     activeLevel = 'all';
-    
+
     statusFilterSelect.value = 'all';
     activeStatus = 'all';
-    
+
     searchInput.value = '';
     searchQuery = '';
     clearSearchBtn.style.display = 'none';
-    
+
     stopAutoplay();
     applyFilters();
   });
@@ -767,7 +768,7 @@ function setupEventListeners() {
     }
 
     const key = e.key.toLowerCase();
-    
+
     // Check if HSK Exam Player is active
     const examPlayer = document.getElementById('exam-player');
     if (examPlayer && examPlayer.style.display === 'block') {
@@ -825,7 +826,7 @@ function setupEventListeners() {
 async function initAuth() {
   // Check if session is active on backend
   try {
-    const res = await fetch('/api/auth/me');
+    const res = await fetch(${ API_BASE_URL } / api / auth / me);
     if (res.ok) {
       const data = await res.json();
       if (data.user) {
@@ -863,7 +864,7 @@ function initGoogleSignIn() {
   try {
     const signinBtnWrapper = document.getElementById('google-signin-button');
     if (!signinBtnWrapper) return;
-    
+
     // Clear wrapper first in case of re-rendering
     signinBtnWrapper.innerHTML = '';
 
@@ -876,9 +877,9 @@ function initGoogleSignIn() {
 
     google.accounts.id.renderButton(
       signinBtnWrapper,
-      { 
-        theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline', 
-        size: 'medium', 
+      {
+        theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
+        size: 'medium',
         type: 'standard',
         shape: 'rectangular',
         text: 'signin_with',
@@ -893,14 +894,14 @@ function initGoogleSignIn() {
 // Google Sign-In Credential Callback
 async function handleCredentialResponse(response) {
   try {
-    const res = await fetch('/api/auth/google', {
+    const res = await fetch(${ API_BASE_URL } / api / auth / google, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential: response.credential })
     });
 
     if (!res.ok) throw new Error('Đăng nhập qua backend thất bại');
-    
+
     const data = await res.json();
     if (data.success && data.user) {
       currentUser = data.user;
@@ -920,21 +921,21 @@ async function handleCredentialResponse(response) {
 // Logout Click Handler
 async function handleLogout(e) {
   if (e) e.preventDefault();
-  
+
   try {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch(${ API_BASE_URL } / api / auth / logout, { method: 'POST' });
   } catch (err) {
     console.warn('Backend logout call failed, cleaning up client anyway:', err);
   }
 
   currentUser = null;
   localStorage.removeItem('user');
-  
+
   const userDropdownToggle = document.querySelector('.user-dropdown');
   if (userDropdownToggle) {
     userDropdownToggle.classList.remove('show-menu');
   }
-  
+
   if (typeof google !== 'undefined') {
     try {
       google.accounts.id.disableAutoSelect();
@@ -942,10 +943,10 @@ async function handleLogout(e) {
       console.warn(e);
     }
   }
-  
+
   renderUserProfile();
   showToast('Đã đăng xuất thành công.');
-  
+
   // Re-initialize Google Sign-In button since logged-out elements render again
   setTimeout(initGoogleSignIn, 100);
 }
@@ -1030,7 +1031,7 @@ function seededShuffle(arr, seed) {
 
 function generateExam(level, setNumber) {
   let levelVocabs = vocabList.filter(w => w.level === level);
-  
+
   if (levelVocabs.length === 0) {
     levelVocabs = vocabList;
   }
@@ -1056,7 +1057,7 @@ function generateExam(level, setNumber) {
 
   for (let i = 0; i < qCount; i++) {
     const vocabItem = shuffledVocab[i % shuffledVocab.length];
-    
+
     let section = "Phần II: Đọc hiểu";
     let isListening = false;
     let isWriting = false;
@@ -1122,14 +1123,14 @@ function generateExam(level, setNumber) {
       } else {
         questionText = `Từ vựng chữ Hán "${vocabItem.word}" (${vocabItem.pinyin}) có nghĩa tiếng Việt là gì?`;
       }
-      
+
       explanation = `
         <h5>Giải thích chi tiết:</h5>
         <p>Từ chữ Hán <strong>${vocabItem.word}</strong> có phiên âm Pinyin là <strong>${vocabItem.pinyin}</strong> và có nghĩa là <strong>"${vocabItem.meaning}"</strong>.</p>
         <p><strong>Từ loại</strong>: ${vocabItem.category || "Chưa phân loại"}</p>
         ${vocabItem.example_zh ? `<p><strong>Ví dụ minh họa</strong>: ${vocabItem.example_zh} (${vocabItem.example_vi})</p>` : ""}
       `;
-    } 
+    }
     else if (qType === "character") {
       correctValue = vocabItem.word;
       distractors = getDistractors("word", correctValue);
@@ -1147,26 +1148,26 @@ function generateExam(level, setNumber) {
         <p><strong>Từ loại</strong>: ${vocabItem.category || "Chưa phân loại"}</p>
         ${vocabItem.example_zh ? `<p><strong>Ví dụ minh họa</strong>: ${vocabItem.example_zh} (${vocabItem.example_vi})</p>` : ""}
       `;
-    } 
+    }
     else if (qType === "pinyin") {
       correctValue = vocabItem.pinyin;
       distractors = getDistractors("pinyin", correctValue);
       questionText = `Phiên âm Pinyin chính xác của từ chữ Hán "${vocabItem.word}" (nghĩa: "${vocabItem.meaning}") là gì?`;
-      
+
       explanation = `
         <h5>Giải thích chi tiết:</h5>
         <p>Từ chữ Hán <strong>${vocabItem.word}</strong> (nghĩa: "${vocabItem.meaning}") phát âm Pinyin chính xác là <strong>${vocabItem.pinyin}</strong>.</p>
         <p><strong>Từ loại</strong>: ${vocabItem.category || "Chưa phân loại"}</p>
         ${vocabItem.example_zh ? `<p><strong>Ví dụ minh họa</strong>: ${vocabItem.example_zh} (${vocabItem.example_vi})</p>` : ""}
       `;
-    } 
+    }
     else if (qType === "sentence") {
       correctValue = vocabItem.word;
       distractors = getDistractors("word", correctValue);
 
       const blankSentence = vocabItem.example_zh.replaceAll(vocabItem.word, " _____ ");
       questionText = `Điền từ thích hợp vào chỗ trống để hoàn thành câu dưới đây:\n\n${blankSentence}\n\n(Dịch nghĩa: "${vocabItem.example_vi}")`;
-      
+
       explanation = `
         <h5>Giải thích chi tiết:</h5>
         <p>Câu hoàn chỉnh: <strong>${vocabItem.example_zh}</strong></p>
@@ -1174,7 +1175,7 @@ function generateExam(level, setNumber) {
         <p>Trong câu này, ta cần dùng từ <strong>${vocabItem.word}</strong> (${vocabItem.pinyin} - nghĩa là "${vocabItem.meaning}") để tạo thành câu có nghĩa hợp lý nhất.</p>
         <p><strong>Phân tích ngữ pháp</strong>: Từ loại của <strong>${vocabItem.word}</strong> là ${vocabItem.category || "Chưa phân loại"}.</p>
       `;
-    } 
+    }
     else if (qType === "category") {
       correctValue = vocabItem.category || "Khác";
       distractors = getDistractors("category", correctValue);
@@ -1184,7 +1185,7 @@ function generateExam(level, setNumber) {
       distractors = categoryDistractors.slice(0, 3);
 
       questionText = `Từ vựng "${vocabItem.word}" (${vocabItem.pinyin}) có nghĩa "${vocabItem.meaning}" thuộc từ loại nào?`;
-      
+
       explanation = `
         <h5>Giải thích chi tiết:</h5>
         <p>Từ <strong>${vocabItem.word}</strong> (${vocabItem.pinyin} - nghĩa là "${vocabItem.meaning}") thuộc từ loại <strong>${correctValue}</strong> trong ngữ pháp tiếng Trung.</p>
@@ -1213,14 +1214,14 @@ function generateExam(level, setNumber) {
 function showHomeView() {
   const hero = document.querySelector('.hero-banner');
   if (hero) hero.style.display = 'block';
-  
+
   document.getElementById('flashcard-section').style.display = 'block';
   document.getElementById('custom-section').style.display = 'block';
   document.getElementById('hsk-exams-section').style.display = 'none';
-  
+
   document.getElementById('nav-home-btn').classList.add('active');
   document.getElementById('nav-exams-btn').classList.remove('active');
-  
+
   // Stop autoplay if user navigated home
   stopAutoplay();
 }
@@ -1228,19 +1229,19 @@ function showHomeView() {
 function showExamsView() {
   const hero = document.querySelector('.hero-banner');
   if (hero) hero.style.display = 'none';
-  
+
   document.getElementById('flashcard-section').style.display = 'none';
   document.getElementById('custom-section').style.display = 'none';
   document.getElementById('hsk-exams-section').style.display = 'block';
-  
+
   document.getElementById('nav-home-btn').classList.remove('active');
   document.getElementById('nav-exams-btn').classList.add('active');
-  
+
   document.getElementById('exam-level-selection').style.display = 'block';
   document.getElementById('exam-papers-list').style.display = 'none';
   document.getElementById('exam-player').style.display = 'none';
   document.getElementById('exam-result-view').style.display = 'none';
-  
+
   // Stop flashcard autoplay
   stopAutoplay();
 }
@@ -1248,24 +1249,24 @@ function showExamsView() {
 function loadExamPapersList(level) {
   currentExamLevel = parseInt(level);
   document.getElementById('selected-level-title').textContent = `Đề Thi HSK Cấp ${currentExamLevel}`;
-  
+
   const papersGrid = document.getElementById('exam-papers-grid');
   papersGrid.innerHTML = '';
-  
+
   const userKey = currentUser ? currentUser.email : 'guest';
   const progressKey = `hsk_exam_progress_${userKey}`;
   const examProgress = JSON.parse(localStorage.getItem(progressKey) || '{}');
-  
+
   const meta = HSK_LEVELS_METADATA[currentExamLevel] || { time: 45, questionsCount: 40 };
 
   for (let s = 1; s <= 20; s++) {
     const paperId = `${currentExamLevel}_${s}`;
     const scoreRecord = examProgress[paperId];
-    
+
     let statusClass = 'status-todo';
     let statusText = 'Chưa làm';
     let scoreDisplay = '';
-    
+
     if (scoreRecord) {
       statusClass = 'status-done';
       statusText = scoreRecord.status === 'PASS' ? 'ĐẠT' : 'CHƯA ĐẠT';
@@ -1286,11 +1287,11 @@ function loadExamPapersList(level) {
         <button class="btn btn-sm btn-primary start-paper-btn" data-set="${s}">Vào thi</button>
       </div>
     `;
-    
+
     card.querySelector('.start-paper-btn').addEventListener('click', () => {
       startExam(currentExamLevel, s);
     });
-    
+
     papersGrid.appendChild(card);
   }
 }
@@ -1301,14 +1302,14 @@ function startExam(level, setNumber) {
   currentExamQuestions = generateExam(level, setNumber);
   currentExamAnswers = Array(currentExamQuestions.length).fill(null);
   activeQuestionIndex = 0;
-  
+
   document.getElementById('player-exam-title').textContent = `Đề Thi HSK ${level} - Đề số ${setNumber.toString().padStart(2, '0')}`;
   document.getElementById('player-exam-level').textContent = `HSK ${level}`;
-  
+
   const meta = HSK_LEVELS_METADATA[level] || { time: 45 };
   examTotalSeconds = meta.time * 60;
   examTimeRemaining = examTotalSeconds;
-  
+
   updateTimerDisplay();
   if (examTimerInterval) clearInterval(examTimerInterval);
   examTimerInterval = setInterval(() => {
@@ -1320,13 +1321,13 @@ function startExam(level, setNumber) {
       submitExam(true);
     }
   }, 1000);
-  
+
   renderQuestionNavigator();
   renderActiveQuestion();
-  
+
   document.getElementById('exam-papers-list').style.display = 'none';
   document.getElementById('exam-player').style.display = 'block';
-  
+
   showToast(`Bắt đầu làm bài thi HSK ${level} - Đề ${setNumber}!`);
 }
 
@@ -1338,7 +1339,7 @@ function updateTimerDisplay() {
   const seconds = examTimeRemaining % 60;
   const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   timerElement.textContent = timeStr;
-  
+
   if (examTimeRemaining < 300) {
     timerElement.parentElement.classList.add('warning-time');
   } else {
@@ -1349,7 +1350,7 @@ function updateTimerDisplay() {
 function renderQuestionNavigator() {
   const navContainer = document.getElementById('player-question-nav-sections');
   navContainer.innerHTML = '';
-  
+
   const sections = {};
   currentExamQuestions.forEach((q, idx) => {
     if (!sections[q.section]) {
@@ -1357,37 +1358,37 @@ function renderQuestionNavigator() {
     }
     sections[q.section].push({ q, idx });
   });
-  
+
   for (let sectionName in sections) {
     const secWrap = document.createElement('div');
     secWrap.className = 'nav-section-wrap';
     secWrap.innerHTML = `<h5 class="nav-section-title" style="margin-top: 8px;">${sectionName}</h5>`;
-    
+
     const grid = document.createElement('div');
     grid.className = 'nav-questions-grid';
-    
+
     sections[sectionName].forEach(({ q, idx }) => {
       const btn = document.createElement('button');
       btn.className = 'q-btn';
       btn.type = 'button';
       btn.textContent = idx + 1;
-      
+
       if (idx === activeQuestionIndex) {
         btn.classList.add('active');
       }
       if (currentExamAnswers[idx] !== null) {
         btn.classList.add('answered');
       }
-      
+
       btn.addEventListener('click', () => {
         activeQuestionIndex = idx;
         renderActiveQuestion();
         updateNavigatorActiveState();
       });
-      
+
       grid.appendChild(btn);
     });
-    
+
     secWrap.appendChild(grid);
     navContainer.appendChild(secWrap);
   }
@@ -1401,7 +1402,7 @@ function updateNavigatorActiveState() {
     } else {
       btn.classList.remove('active');
     }
-    
+
     if (currentExamAnswers[idx] !== null) {
       btn.classList.add('answered');
     } else {
@@ -1412,20 +1413,18 @@ function updateNavigatorActiveState() {
 
 function renderActiveQuestion() {
   if (currentExamQuestions.length === 0) return;
-  
+
   const q = currentExamQuestions[activeQuestionIndex];
-  
+
   document.getElementById('active-question-number').textContent = `Câu ${activeQuestionIndex + 1} / ${currentExamQuestions.length}`;
   document.getElementById('active-question-section').textContent = q.section;
-  
+
   const audioContainer = document.getElementById('question-audio-container');
   const examAudioPlayer = document.getElementById('exam-audio-player');
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      const backendHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `${window.location.protocol}//${window.location.hostname}:5000`
-        : window.location.origin;
+      const backendHost = API_BASE_URL;
       examAudioPlayer.src = `${backendHost}/api/tts?text=${encodeURIComponent(q.audioText)}`;
       examAudioPlayer.volume = 1.0;
       examAudioPlayer.load();
@@ -1436,39 +1435,39 @@ function renderActiveQuestion() {
       examAudioPlayer.src = '';
     }
   }
-  
+
   document.getElementById('active-question-text').innerHTML = q.question.replace(/\n/g, '<br>');
-  
+
   const optionsContainer = document.getElementById('active-question-options');
   optionsContainer.innerHTML = '';
-  
+
   q.choices.forEach((choice, idx) => {
     const label = document.createElement('label');
     label.className = 'option-item';
     if (currentExamAnswers[activeQuestionIndex] === idx) {
       label.classList.add('selected');
     }
-    
+
     label.innerHTML = `
       <input type="radio" name="exam-option" value="${idx}" ${currentExamAnswers[activeQuestionIndex] === idx ? 'checked' : ''}>
       <span class="option-label">${String.fromCharCode(65 + idx)}. ${choice}</span>
     `;
-    
+
     label.addEventListener('click', (e) => {
       currentExamAnswers[activeQuestionIndex] = idx;
-      
+
       const labels = optionsContainer.querySelectorAll('.option-item');
       labels.forEach(l => l.classList.remove('selected'));
       label.classList.add('selected');
-      
+
       updateNavigatorActiveState();
     });
-    
+
     optionsContainer.appendChild(label);
   });
-  
+
   document.getElementById('exam-prev-btn').disabled = (activeQuestionIndex === 0);
-  
+
   const nextBtn = document.getElementById('exam-next-btn');
   if (activeQuestionIndex === currentExamQuestions.length - 1) {
     nextBtn.innerHTML = `Hoàn thành <i class="fa-solid fa-circle-check"></i>`;
@@ -1486,30 +1485,30 @@ function submitExam(isAuto = false) {
     }
     if (!confirm(message)) return;
   }
-  
+
   if (examTimerInterval) clearInterval(examTimerInterval);
-  
+
   let correctCount = 0;
   currentExamQuestions.forEach((q, idx) => {
     if (currentExamAnswers[idx] === q.answer) {
       correctCount++;
     }
   });
-  
+
   const totalCount = currentExamQuestions.length;
   const percentage = Math.round((correctCount / totalCount) * 100);
   const timeSpentSeconds = examTotalSeconds - examTimeRemaining;
   const spentMinutes = Math.floor(timeSpentSeconds / 60);
   const spentSeconds = timeSpentSeconds % 60;
   const timeSpentStr = `${spentMinutes.toString().padStart(2, '0')}:${spentSeconds.toString().padStart(2, '0')}`;
-  
+
   const status = percentage >= 60 ? 'PASS' : 'FAIL';
-  
+
   const userKey = currentUser ? currentUser.email : 'guest';
   const progressKey = `hsk_exam_progress_${userKey}`;
   const examProgress = JSON.parse(localStorage.getItem(progressKey) || '{}');
   const paperId = `${currentExamLevel}_${currentExamSet}`;
-  
+
   examProgress[paperId] = {
     score: correctCount,
     total: totalCount,
@@ -1519,12 +1518,12 @@ function submitExam(isAuto = false) {
     date: new Date().toISOString()
   };
   localStorage.setItem(progressKey, JSON.stringify(examProgress));
-  
+
   renderExamResults(correctCount, totalCount, percentage, timeSpentStr, status);
-  
+
   document.getElementById('exam-player').style.display = 'none';
   document.getElementById('exam-result-view').style.display = 'block';
-  
+
   showToast(status === 'PASS' ? 'Chúc mừng! Bạn đã ĐẠT bài thi! 🎉' : 'Rất tiếc! Bạn chưa đạt điểm chuẩn.', status === 'FAIL');
 }
 
@@ -1533,7 +1532,7 @@ function renderExamResults(correct, total, percentage, timeSpent, status) {
   document.getElementById('result-score').textContent = `${correct} / ${total}`;
   document.getElementById('result-percentage').textContent = `${percentage}%`;
   document.getElementById('result-time-spent').textContent = timeSpent;
-  
+
   const badge = document.getElementById('result-status-badge');
   if (status === 'PASS') {
     badge.textContent = 'ĐẠT';
@@ -1542,23 +1541,23 @@ function renderExamResults(correct, total, percentage, timeSpent, status) {
     badge.textContent = 'TRƯỢT';
     badge.className = 'result-status-badge fail';
   }
-  
+
   const reviewContainer = document.getElementById('review-questions-list');
   reviewContainer.innerHTML = '';
-  
+
   currentExamQuestions.forEach((q, idx) => {
     const userAnswerIndex = currentExamAnswers[idx];
     const isCorrect = userAnswerIndex === q.answer;
-    
+
     const qItem = document.createElement('div');
     qItem.className = 'review-q-item';
-    
-    const statusLabel = isCorrect 
-      ? '<span class="badge badge-category" style="background: var(--success-bg); color: var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> ĐÚNG</span>' 
-      : (userAnswerIndex === null 
-         ? '<span class="badge badge-category" style="background: var(--border-glass); color: var(--text-muted); font-weight:700;"><i class="fa-regular fa-circle"></i> BỎ QUA</span>'
-         : '<span class="badge badge-category" style="background: var(--danger-bg); color: var(--danger); font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> SAI</span>');
-    
+
+    const statusLabel = isCorrect
+      ? '<span class="badge badge-category" style="background: var(--success-bg); color: var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> ĐÚNG</span>'
+      : (userAnswerIndex === null
+        ? '<span class="badge badge-category" style="background: var(--border-glass); color: var(--text-muted); font-weight:700;"><i class="fa-regular fa-circle"></i> BỎ QUA</span>'
+        : '<span class="badge badge-category" style="background: var(--danger-bg); color: var(--danger); font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> SAI</span>');
+
     qItem.innerHTML = `
       <div class="review-q-header">
         <span class="q-num">Câu ${idx + 1} (${q.section})</span>
@@ -1571,29 +1570,29 @@ function renderExamResults(correct, total, percentage, timeSpent, status) {
         ${q.explanation}
       </div>
     `;
-    
+
     const optionsGrid = qItem.querySelector('.review-options-list');
     q.choices.forEach((choice, optIdx) => {
       const optDiv = document.createElement('div');
       optDiv.className = 'rev-option';
-      
+
       if (optIdx === q.answer) {
         optDiv.classList.add('correct');
       } else if (optIdx === userAnswerIndex) {
         optDiv.classList.add('wrong');
       }
-      
+
       let prefix = '';
       if (optIdx === q.answer) {
         prefix = '<i class="fa-solid fa-check" style="margin-right: 8px;"></i> ';
       } else if (optIdx === userAnswerIndex) {
         prefix = '<i class="fa-solid fa-xmark" style="margin-right: 8px;"></i> ';
       }
-      
+
       optDiv.innerHTML = `${prefix}${String.fromCharCode(65 + optIdx)}. ${choice}`;
       optionsGrid.appendChild(optDiv);
     });
-    
+
     reviewContainer.appendChild(qItem);
   });
 }
@@ -1601,14 +1600,14 @@ function renderExamResults(correct, total, percentage, timeSpent, status) {
 function initExams() {
   const navHomeBtn = document.getElementById('nav-home-btn');
   const navExamsBtn = document.getElementById('nav-exams-btn');
-  
+
   if (navHomeBtn) {
     navHomeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       showHomeView();
     });
   }
-  
+
   if (navExamsBtn) {
     navExamsBtn.addEventListener('click', (e) => {
       e.preventDefault();
