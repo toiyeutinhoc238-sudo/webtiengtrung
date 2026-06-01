@@ -150,16 +150,13 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(text)}`;
+  // Dùng API Baidu: cuid=baike, lan=ZH, spd=5 (tốc độ), vol=9 (âm lượng max), per=0 (giọng nữ)
+  const audioUrl = `https://tts.baidu.com/text2audio?cuid=baike&lan=ZH&ctp=1&pdt=301&vol=9&spd=5&per=0&tex=${encodeURIComponent(text)}`;
 
-  // Tạo thẻ audio ẩn và dùng tuyệt chiêu "giấu tung tích"
-  const audio = document.createElement('audio');
-  audio.src = audioUrl;
-  audio.referrerPolicy = 'no-referrer'; // Dòng này sẽ lừa Google chặn!
-
+  const audio = new Audio(audioUrl);
   audio.play().catch(err => {
     console.error("Lỗi phát âm thanh:", err);
-    showToast("Trình duyệt chặn âm thanh, hãy thử click vào trang web trước!", true);
+    showToast("Trình duyệt đang chặn âm thanh, thử click vào trang web một lần nhé!", true);
   });
 }
 
@@ -1366,9 +1363,8 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      examAudioPlayer.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodeURIComponent(q.audioText)}`;
-      // Thêm dòng này vào để giấu Referer cho phần thi thử
-      examAudioPlayer.referrerPolicy = 'no-referrer';
+      // Dùng Baidu TTS cho phần thi thử
+      examAudioPlayer.src = `https://tts.baidu.com/text2audio?cuid=baike&lan=ZH&ctp=1&pdt=301&vol=9&spd=5&per=0&tex=${encodeURIComponent(q.audioText)}`;
     }
   } else {
     audioContainer.style.display = 'none';
