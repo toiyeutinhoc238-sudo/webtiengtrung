@@ -148,76 +148,28 @@ function initVoices() {
 function speakText(text) {
   if (!text) return;
 
-  // Clean up any SpeechSynthesis speaking
-  try {
-    if (typeof speechSynthesis !== 'undefined') {
-      speechSynthesis.cancel();
-    }
-  } catch (e) {
-    console.warn(e);
+  // 1. Kiểm tra xem trình duyệt có hỗ trợ không
+  if (typeof speechSynthesis === 'undefined') {
+    showToast("Trình duyệt của bạn không hỗ trợ phát âm thanh!", true);
+    return;
   }
 
-  // Resolve backend URL: bypass Vite proxy in local development to avoid streaming buffer bugs
-  const backendHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? `${window.location.protocol}//${window.location.hostname}:5000`
-    : window.location.origin;
+  // 2. Tắt ngay âm thanh cũ nếu đang đọc dở
+  speechSynthesis.cancel();
+  showToast("Đang phát âm thanh...", false);
 
-  const ttsUrl = `${backendHost}/api/tts?text=${encodeURIComponent(text)}`;
+  // 3. Khởi tạo giọng đọc mới
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'zh-CN'; // Ép ngôn ngữ tiếng Trung
+  utterance.rate = 0.85;    // Tốc độ đọc (nhỏ hơn 1 là đọc chậm lại chút cho dễ nghe)
 
-  try {
-    const audio = new Audio();
-    audio.src = ttsUrl;
-    audio.volume = 1.0;
-
-    let hasFailed = false;
-
-    // Diagnostic playback listeners
-    audio.onplay = () => {
-      showToast("Bắt đầu phát âm thanh...", false);
-    };
-
-    audio.onplaying = () => {
-      showToast("Đang phát âm thanh...", false);
-    };
-
-    audio.onwaiting = () => {
-      showToast("Đang chờ tải dữ liệu âm thanh...", false);
-    };
-
-    audio.onstalled = () => {
-      showToast("Nguồn phát âm thanh bị nghẽn (stalled)!", true);
-    };
-
-    audio.onended = () => {
-      showToast("Đã phát xong âm thanh! 🎉", false);
-    };
-
-    audio.onerror = (err) => {
-      if (hasFailed) return;
-      hasFailed = true;
-      let errMsg = "Lỗi tải âm thanh";
-      if (audio.error) {
-        errMsg += ` (Code: ${audio.error.code}, Message: ${audio.error.message})`;
-      }
-      console.warn("Backend TTS proxy failed, falling back to local SpeechSynthesis:", err);
-      showToast(`${errMsg}. Đang thử giọng hệ thống...`, true);
-      fallbackSpeakSpeechSynthesis(text);
-    };
-
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(err => {
-        if (hasFailed) return;
-        hasFailed = true;
-        console.warn("Backend TTS play promise rejected, falling back to local SpeechSynthesis:", err);
-        showToast(`Không thể phát (Promise: ${err.message}). Đang dùng giọng hệ thống...`, true);
-        fallbackSpeakSpeechSynthesis(text);
-      });
-    }
-  } catch (e) {
-    console.warn("Audio creation failed, falling back to local SpeechSynthesis:", e);
-    fallbackSpeakSpeechSynthesis(text);
+  // Nếu tìm thấy giọng tiếng Trung chất lượng cao thì dùng
+  if (chineseVoice) {
+    utterance.voice = chineseVoice;
   }
+
+  // 4. Bắt đầu đọc
+  speechSynthesis.speak(utterance);
 }
 
 function fallbackSpeakSpeechSynthesis(text) {
@@ -1423,10 +1375,7 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      const backendHost = API_BASE_URL;
-      examAudioPlayer.src = `${backendHost}/api/tts?text=${encodeURIComponent(q.audioText)}`;
-      examAudioPlayer.volume = 1.0;
-      examAudioPlayer.load();
+      examAudioPlayer.src = ''; // Bỏ trống để ép hệ thống dùng hàm speakText
     }
   } else {
     audioContainer.style.display = 'none';
