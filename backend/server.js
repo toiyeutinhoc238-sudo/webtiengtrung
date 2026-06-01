@@ -55,6 +55,19 @@ async function writeUserData(data) {
 // Session store in memory: sessionToken -> userEmail
 const activeSessions = new Map();
 
+// Load persisted sessions on startup
+try {
+  const userData = await readUserData();
+  if (userData.sessions) {
+    for (const [token, email] of Object.entries(userData.sessions)) {
+      activeSessions.set(token, email);
+    }
+    console.log(`Loaded ${activeSessions.size} active sessions from user_data.json`);
+  }
+} catch (err) {
+  console.error('Failed to load active sessions from user_data.json:', err);
+}
+
 // Helper to parse cookie from headers
 function getSessionCookie(req) {
   const cookieHeader = req.headers.cookie || '';
@@ -68,7 +81,24 @@ function getSessionCookie(req) {
 
 // Helper to retrieve logged-in user email
 function getLoggedInUserEmail(req) {
-  const token = getSessionCookie(req);
+  let token = null;
+
+  // 1. Check Authorization header
+  const authHeader = req.headers.authorization || '';
+  if (authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
+
+  // 2. Check custom header
+  if (!token) {
+    token = req.headers['x-session-token'];
+  }
+
+  // 3. Fallback to Cookie
+  if (!token) {
+    token = getSessionCookie(req);
+  }
+
   if (!token) return null;
   return activeSessions.get(token) || null;
 }
@@ -104,20 +134,24 @@ app.post('/api/auth/google', async (req, res) => {
   const name = payload.name;
   const picture = payload.picture;
 
-  // Persist user record in user_data.json
-  const userData = await readUserData();
-  userData.users[email] = { name, picture };
-  await writeUserData(userData);
-
   // Generate a random session token
   const sessionToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
   activeSessions.set(sessionToken, email);
 
-  // Set HttpOnly, secure (optional in dev, let lax same-site) cookie valid for 7 days
+  // Persist user record and session in user_data.json
+  const userData = await readUserData();
+  userData.users[email] = { name, picture };
+  if (!userData.sessions) {
+    userData.sessions = {};
+  }
+  userData.sessions[sessionToken] = email;
+  await writeUserData(userData);
+
   res.setHeader('Set-Cookie', `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
 
   res.json({
     success: true,
+    token: sessionToken,
     user: { name, email, picture }
   });
 });
@@ -145,10 +179,21 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 // POST endpoint to logout
-app.post('/api/auth/logout', (req, res) => {
-  const token = getSessionCookie(req);
+app.post('/api/auth/logout', async (req, res) => {
+  const token = req.headers['x-session-token'] || 
+                (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null) || 
+                getSessionCookie(req);
   if (token) {
     activeSessions.delete(token);
+    try {
+      const userData = await readUserData();
+      if (userData.sessions && userData.sessions[token]) {
+        delete userData.sessions[token];
+        await writeUserData(userData);
+      }
+    } catch (e) {
+      console.error('Failed to delete session from user_data.json:', e);
+    }
   }
   // Clear the cookie on client
   res.setHeader('Set-Cookie', 'session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
@@ -247,7 +292,8 @@ app.post('/api/vocabulary/toggle-memorized', async (req, res) => {
     res.json({
       ...masterList[wordIndex],
       isMemorized: userData.progress[email][wordKey].isMemorized,
-      isStarred: userData.progress[email][wordKey].isStarred
+      isStarred: userData.progress[email][wordKey].isStarred,
+      isWrong: !!userData.progress[email][wordKey].isWrong
     });
   }
 });
@@ -303,7 +349,8 @@ app.post('/api/vocabulary/toggle-starred', async (req, res) => {
     res.json({
       ...masterList[wordIndex],
       isMemorized: userData.progress[email][wordKey].isMemorized,
-      isStarred: userData.progress[email][wordKey].isStarred
+      isStarred: userData.progress[email][wordKey].isStarred,
+      isWrong: !!userData.progress[email][wordKey].isWrong
     });
   }
 });

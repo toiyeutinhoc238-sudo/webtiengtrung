@@ -138,19 +138,19 @@
         <!-- Quick Stats Widget -->
         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
           <div class="stats-summary-widget">
-            <div class="widget-item">
+            <div class="widget-item" data-status="all" title="Click để xem tất cả từ">
               <span class="widget-value" id="stats-total">0</span>
               <span class="widget-label">Tổng số từ</span>
             </div>
-            <div class="widget-item">
+            <div class="widget-item" data-status="memorized" title="Click để xem từ đã thuộc">
               <span class="widget-value text-success" id="stats-memorized">0</span>
               <span class="widget-label">Đã thuộc</span>
             </div>
-            <div class="widget-item">
+            <div class="widget-item" data-status="unmemorized" title="Click để xem từ chưa thuộc">
               <span class="widget-value text-danger" id="stats-unmemorized">0</span>
               <span class="widget-label">Chưa thuộc</span>
             </div>
-            <div class="widget-item">
+            <div class="widget-item" data-status="starred" title="Click để xem từ yêu thích">
               <span class="widget-value text-warning" id="stats-starred">0</span>
               <span class="widget-label">Đánh dấu sao</span>
             </div>
@@ -420,6 +420,60 @@
 
         </div>
       </div>
+
+      <!-- Filtered Vocabulary List View -->
+      <div id="filtered-words-list-container" class="glass-panel" style="margin-top: 32px; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-list-check text-primary"></i> <span id="filtered-words-title">Danh sách từ vựng chi tiết đang học</span>
+            </h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 4px 0 0 0;">Nhấp vào nút loa để nghe phát âm, biểu tượng chiếc mũ để chuyển nhanh tới thẻ học tương ứng.</p>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+            Tìm thấy: <strong id="filtered-words-count" style="color: var(--accent-blue);">0</strong> từ
+          </span>
+        </div>
+        
+        <!-- Tabs Bar -->
+        <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px; flex-wrap: wrap;">
+          <button class="list-tab-btn" data-tab="memorized">
+            <i class="fa-solid fa-circle-check text-success"></i> Đã học thuộc (0)
+          </button>
+          <button class="list-tab-btn" data-tab="unmemorized">
+            <i class="fa-solid fa-circle-xmark text-danger"></i> Chưa thuộc (0)
+          </button>
+          <button class="list-tab-btn" data-tab="starred">
+            <i class="fa-solid fa-star text-warning"></i> Yêu thích (0)
+          </button>
+        </div>
+
+        <div class="filtered-words-table-wrapper" style="overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--radius-md);">
+          <table class="custom-words-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border-glass); font-weight: 600; color: var(--text-muted); font-family: var(--font-display); background: rgba(0,0,0,0.2);">
+                <th style="padding: 12px; width: 120px;">Chữ Hán</th>
+                <th style="padding: 12px; width: 130px;">Pinyin</th>
+                <th style="padding: 12px;">Nghĩa tiếng Việt</th>
+                <th style="padding: 12px; width: 100px;">Cấp độ</th>
+                <th style="padding: 12px; width: 180px; text-align: center;">Thao tác nhanh</th>
+              </tr>
+            </thead>
+            <tbody id="filtered-words-table-rows">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <span id="filtered-words-table-note" style="font-size: 0.8rem; color: var(--text-secondary); display: none;">
+            * Chỉ hiển thị tối đa 100 từ để tối ưu hiệu suất.
+          </span>
+          <button id="view-full-list-btn" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 6px 12px; border-radius: var(--radius-sm); background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); display: flex; align-items: center; gap: 6px; border: 1px solid rgba(59, 130, 246, 0.25);">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Xem danh sách đầy đủ (Cửa sổ mới)
+          </button>
+        </div>
+      </div>
+
     </section>
 
     <!-- Custom Cards Management Section -->

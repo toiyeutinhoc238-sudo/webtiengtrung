@@ -13,13 +13,20 @@
     "phanphiphu04@gmail.com": {
       "275": {
         "isMemorized": false,
-        "isStarred": true
+        "isStarred": false
       },
       "384": {
-        "isMemorized": true,
+        "isMemorized": false,
+        "isStarred": false
+      },
+      "4632": {
+        "isMemorized": false,
         "isStarred": false
       }
     }
   },
-  "customWords": {}
+  "customWords": {},
+  "sessions": {
+    "o4bo7lavtvhmpvdgg8m": "phanphiphu04@gmail.com"
+  }
 }

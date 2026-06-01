@@ -206,9 +206,26 @@ function fallbackSpeakSpeechSynthesis(text) {
 // --- API ACTIONS ---
 async function fetchVocabulary() {
   try {
-    const response = await fetch(API_BASE_URL + '/api/vocabulary');
+    const response = await fetch(API_BASE_URL + '/api/vocabulary', {
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    });
     if (!response.ok) throw new Error('Không thể tải từ vựng từ API');
     vocabList = await response.json();
+
+    // If guest, merge guest progress from localStorage
+    if (!currentUser) {
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      vocabList = vocabList.map(w => {
+        const state = guestProgress[w.id];
+        return {
+          ...w,
+          isMemorized: state ? !!state.isMemorized : !!w.isMemorized,
+          isStarred: state ? !!state.isStarred : !!w.isStarred,
+          isWrong: state ? !!state.isWrong : !!w.isWrong
+        };
+      });
+    }
 
     initCustomLists();
     renderCustomLists();
@@ -218,6 +235,21 @@ async function fetchVocabulary() {
   } catch (error) {
     console.error('API Error:', error);
     showToast('Lỗi kết nối máy chủ backend!', true);
+    
+    // Merge guest progress on fallback empty seed list if offline
+    if (!currentUser) {
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      vocabList = vocabList.map(w => {
+        const state = guestProgress[w.id];
+        return {
+          ...w,
+          isMemorized: state ? !!state.isMemorized : !!w.isMemorized,
+          isStarred: state ? !!state.isStarred : !!w.isStarred,
+          isWrong: state ? !!state.isWrong : !!w.isWrong
+        };
+      });
+    }
+    
     initCustomLists();
     renderCustomLists();
     updateStats();
@@ -226,19 +258,55 @@ async function fetchVocabulary() {
 }
 
 async function toggleWordMemorized(id) {
+  if (!currentUser) {
+    const index = vocabList.findIndex(w => w.id === id);
+    if (index !== -1) {
+      vocabList[index].isMemorized = !vocabList[index].isMemorized;
+      
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      if (!guestProgress[id]) guestProgress[id] = {};
+      guestProgress[id].isMemorized = vocabList[index].isMemorized;
+      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+      
+      updateStats();
+      applyFilters(true);
+      showToast(vocabList[index].isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
+    }
+    return;
+  }
+
   try {
     const response = await fetch(API_BASE_URL + '/api/vocabulary/toggle-memorized', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id }),
+      credentials: 'include'
     });
+    if (response.status === 401) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('session_token');
+      currentUser = null;
+      renderUserProfile();
+      showToast('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', true);
+      const index = vocabList.findIndex(w => w.id === id);
+      if (index !== -1) {
+        vocabList[index].isMemorized = !vocabList[index].isMemorized;
+        const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+        if (!guestProgress[id]) guestProgress[id] = {};
+        guestProgress[id].isMemorized = vocabList[index].isMemorized;
+        localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+        updateStats();
+        applyFilters(true);
+      }
+      return;
+    }
     if (!response.ok) throw new Error('Lỗi cập nhật trạng thái');
     const updatedWord = await response.json();
 
     // Update local state
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
-      vocabList[index] = updatedWord;
+      vocabList[index] = { ...vocabList[index], ...updatedWord };
       updateStats();
       applyFilters(true);
       showToast(updatedWord.isMemorized ? 'Đã thuộc từ này! 🎉' : 'Đã chuyển về danh sách cần ôn tập.');
@@ -250,19 +318,55 @@ async function toggleWordMemorized(id) {
 }
 
 async function toggleWordStarred(id) {
+  if (!currentUser) {
+    const index = vocabList.findIndex(w => w.id === id);
+    if (index !== -1) {
+      vocabList[index].isStarred = !vocabList[index].isStarred;
+      
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      if (!guestProgress[id]) guestProgress[id] = {};
+      guestProgress[id].isStarred = vocabList[index].isStarred;
+      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+      
+      updateStats();
+      applyFilters(true);
+      showToast(vocabList[index].isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
+    }
+    return;
+  }
+
   try {
     const response = await fetch(API_BASE_URL + '/api/vocabulary/toggle-starred', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id }),
+      credentials: 'include'
     });
+    if (response.status === 401) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('session_token');
+      currentUser = null;
+      renderUserProfile();
+      showToast('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', true);
+      const index = vocabList.findIndex(w => w.id === id);
+      if (index !== -1) {
+        vocabList[index].isStarred = !vocabList[index].isStarred;
+        const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+        if (!guestProgress[id]) guestProgress[id] = {};
+        guestProgress[id].isStarred = vocabList[index].isStarred;
+        localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+        updateStats();
+        applyFilters(true);
+      }
+      return;
+    }
     if (!response.ok) throw new Error('Lỗi cập nhật yêu thích');
     const updatedWord = await response.json();
 
     // Update local state
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
-      vocabList[index] = updatedWord;
+      vocabList[index] = { ...vocabList[index], ...updatedWord };
       updateStats();
       applyFilters(true);
       showToast(updatedWord.isStarred ? 'Đã thêm vào yêu thích ⭐' : 'Đã bỏ yêu thích.');
@@ -287,10 +391,11 @@ async function handleAddWordForm(e) {
   try {
     const response = await fetch(API_BASE_URL + '/api/vocabulary', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         word, pinyin, meaning, level, category, example_zh, example_vi
-      })
+      }),
+      credentials: 'include'
     });
 
     if (!response.ok) throw new Error('Lỗi khi thêm từ mới');
@@ -332,7 +437,9 @@ async function handleDeleteCustomWord(id) {
 
   try {
     const response = await fetch(API_BASE_URL + '/api/vocabulary/' + id, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include'
     });
 
     if (!response.ok) throw new Error('Không thể xóa từ');
@@ -555,10 +662,19 @@ function renderCustomWordsTable() {
 }
 
 // --- FILTERING LOGIC ---
+function shuffleArray(array) {
+  let shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 function applyFilters(preserveIndex = false) {
   const previousWordId = (filteredList.length > 0 && currentIndex < filteredList.length) ? filteredList[currentIndex].id : null;
 
-  filteredList = vocabList.filter(w => {
+  const newList = vocabList.filter(w => {
     // If studying a specific custom list, show only custom words in that list
     if (studyCustomCategory) {
       return w.isCustom && w.category === studyCustomCategory;
@@ -586,6 +702,23 @@ function applyFilters(preserveIndex = false) {
     return true;
   });
 
+  if (!preserveIndex) {
+    // Shuffle the list for a new study session
+    filteredList = shuffleArray(newList);
+  } else {
+    // Keep the existing order, but filter out elements that are no longer valid
+    const validIds = new Set(newList.map(w => w.id));
+    filteredList = filteredList.filter(w => validIds.has(w.id));
+    
+    // Add any new elements from newList that were not in filteredList
+    const existingIds = new Set(filteredList.map(w => w.id));
+    newList.forEach(w => {
+      if (!existingIds.has(w.id)) {
+        filteredList.push(w);
+      }
+    });
+  }
+
   // Handle Index Preservation
   if (preserveIndex && previousWordId) {
     const newIndex = filteredList.findIndex(w => w.id === previousWordId);
@@ -603,6 +736,149 @@ function applyFilters(preserveIndex = false) {
   isFlipped = false;
   cardElement.classList.remove('flipped');
   renderActiveCard();
+  renderFilteredWordsTable();
+}
+
+function renderFilteredWordsTable() {
+  const tbody = document.getElementById('filtered-words-table-rows');
+  const countBadge = document.getElementById('filtered-words-count');
+  const noteEl = document.getElementById('filtered-words-table-note');
+  
+  if (!tbody || !countBadge) return;
+
+  // Calculate base counts based on activeLevel and searchQuery (ignoring status)
+  const baseFilteredList = vocabList.filter(w => {
+    if (studyCustomCategory) {
+      return w.isCustom && w.category === studyCustomCategory;
+    }
+    if (activeLevel !== 'all' && w.level.toString() !== activeLevel) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchWord = w.word.includes(q);
+      const matchPinyin = w.pinyin.toLowerCase().includes(q);
+      const matchMeaning = w.meaning.toLowerCase().includes(q);
+      return matchWord || matchPinyin || matchMeaning;
+    }
+    return true;
+  });
+
+  const memorizedCount = baseFilteredList.filter(w => w.isMemorized).length;
+  const unmemorizedCount = baseFilteredList.filter(w => !w.isMemorized).length;
+  const starredCount = baseFilteredList.filter(w => w.isStarred).length;
+
+  // Update tabs labels with dynamic counts
+  const memorizedTab = document.querySelector('.list-tab-btn[data-tab="memorized"]');
+  const unmemorizedTab = document.querySelector('.list-tab-btn[data-tab="unmemorized"]');
+  const starredTab = document.querySelector('.list-tab-btn[data-tab="starred"]');
+
+  if (memorizedTab) memorizedTab.innerHTML = `<i class="fa-solid fa-circle-check text-success"></i> Đã thuộc (${memorizedCount})`;
+  if (unmemorizedTab) unmemorizedTab.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i> Chưa thuộc (${unmemorizedCount})`;
+  if (starredTab) starredTab.innerHTML = `<i class="fa-solid fa-star text-warning"></i> Yêu thích (${starredCount})`;
+
+  // Highlight the active tab button
+  document.querySelectorAll('.list-tab-btn').forEach(btn => {
+    const tab = btn.getAttribute('data-tab');
+    if (tab === activeStatus) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  tbody.innerHTML = '';
+  countBadge.textContent = filteredList.length;
+
+  if (filteredList.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="table-empty" style="text-align: center; padding: 24px; color: var(--text-muted); font-style: italic;">
+          Không tìm thấy từ vựng nào khớp với bộ lọc hiện tại.
+        </td>
+      </tr>
+    `;
+    if (noteEl) noteEl.style.display = 'none';
+    return;
+  }
+
+  // Cap display at 100 for maximum performance
+  const displayLimit = 100;
+  const listToDisplay = filteredList.slice(0, displayLimit);
+  
+  if (noteEl) {
+    noteEl.style.display = filteredList.length > displayLimit ? 'block' : 'none';
+  }
+
+  listToDisplay.forEach((w) => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border-glass)';
+    tr.innerHTML = `
+      <td style="font-family: var(--font-chinese); font-size: 1.25rem; font-weight: 500; padding: 12px;">${w.word}</td>
+      <td style="font-family: var(--font-display); padding: 12px; color: var(--accent-teal);">${w.pinyin}</td>
+      <td style="padding: 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${w.meaning}">${w.meaning}</td>
+      <td style="padding: 12px;"><span class="badge badge-level" style="margin: 0;">${w.isCustom ? 'Cá nhân ✏️' : 'HSK ' + w.level}</span></td>
+      <td style="padding: 12px; text-align: center;">
+        <div style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+          <button class="circle-btn speak-row-btn" data-word="${w.word}" title="Nghe phát âm" style="width: 32px; height: 32px; font-size: 0.8rem; background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-volume-high"></i>
+          </button>
+          <button class="circle-btn study-row-btn" data-id="${w.id}" title="Học từ này" style="width: 32px; height: 32px; font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); color: var(--success); display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </button>
+          <button class="circle-btn star-row-btn ${w.isStarred ? 'active' : ''}" data-id="${w.id}" title="Yêu thích" style="width: 32px; height: 32px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-star"></i>
+          </button>
+          <button class="circle-btn check-row-btn ${w.isMemorized ? 'active' : ''}" data-id="${w.id}" title="Đã thuộc" style="width: 32px; height: 32px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-circle-check"></i>
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Bind Speak Events
+  tbody.querySelectorAll('.speak-row-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const word = btn.getAttribute('data-word');
+      speakText(word);
+    });
+  });
+
+  // Bind Study Jumps
+  tbody.querySelectorAll('.study-row-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.getAttribute('data-id'));
+      const newIndex = filteredList.findIndex(w => w.id === id);
+      if (newIndex !== -1) {
+        currentIndex = newIndex;
+        resetCardOrientation();
+        const cardSection = document.getElementById('flashcard-card');
+        if (cardSection) {
+          cardSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    });
+  });
+
+  // Bind Star Toggles
+  tbody.querySelectorAll('.star-row-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.getAttribute('data-id'));
+      toggleWordStarred(id);
+    });
+  });
+
+  // Bind Memorized Toggles
+  tbody.querySelectorAll('.check-row-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.getAttribute('data-id'));
+      toggleWordMemorized(id);
+    });
+  });
 }
 
 // --- AUTOPLAY LOOP ---
@@ -1050,6 +1326,71 @@ function setupEventListeners() {
       }
     });
   }
+
+  // Quick Stats Click Handlers to filter lists dynamically
+  document.querySelectorAll('.stats-summary-widget .widget-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const status = item.getAttribute('data-status');
+      if (status) {
+        activeStatus = status;
+        statusFilterSelect.value = status;
+        studyCustomCategory = null; // Clear custom categories if studying quick stats
+        stopAutoplay();
+        applyFilters();
+        
+        // Scroll to card interface
+        const flashcardContainer = document.getElementById('flashcard-card');
+        if (flashcardContainer) {
+          flashcardContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        let label = 'Tất cả từ vựng HSK';
+        if (status === 'memorized') label = 'Từ vựng đã thuộc 🎉';
+        if (status === 'unmemorized') label = 'Từ vựng chưa thuộc 📝';
+        if (status === 'starred') label = 'Từ vựng yêu thích ⭐';
+        
+        showToast(`Đang học: ${label}`);
+      }
+    });
+  });
+
+  // List Tab click events (Đã thuộc, Chưa thuộc, Yêu thích)
+  document.querySelectorAll('.list-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      if (tab) {
+        activeStatus = tab;
+        statusFilterSelect.value = tab;
+        studyCustomCategory = null;
+        stopAutoplay();
+        applyFilters();
+      }
+    });
+  });
+
+  // View Full List button click handler
+  const viewFullListBtn = document.getElementById('view-full-list-btn');
+  if (viewFullListBtn) {
+    viewFullListBtn.addEventListener('click', () => {
+      const params = new URLSearchParams();
+      params.set('level', activeLevel);
+      params.set('status', activeStatus);
+      if (searchQuery) params.set('search', searchQuery);
+      if (studyCustomCategory) params.set('customCategory', studyCustomCategory);
+      
+      window.open(`detail-list.html?${params.toString()}`, '_blank');
+    });
+  }
+}
+
+function getAuthHeaders(customHeaders = {}) {
+  const token = localStorage.getItem('session_token');
+  const headers = { ...customHeaders };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['x-session-token'] = token;
+  }
+  return headers;
 }
 
 // --- AUTHENTICATION & LOGIN LOGIC ---
@@ -1058,12 +1399,23 @@ function setupEventListeners() {
 async function initAuth() {
   // Check if session is active on backend
   try {
-    const res = await fetch(API_BASE_URL + '/api/auth/me');
+    const res = await fetch(API_BASE_URL + '/api/auth/me', {
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    });
     if (res.ok) {
       const data = await res.json();
       if (data.user) {
         currentUser = data.user;
         renderUserProfile();
+        return;
+      } else {
+        // Backend explicitly returned user: null, session is invalid/expired!
+        localStorage.removeItem('user');
+        localStorage.removeItem('session_token');
+        currentUser = null;
+        renderUserProfile();
+        initGoogleSignIn();
         return;
       }
     }
@@ -1071,7 +1423,7 @@ async function initAuth() {
     console.warn('Backend session retrieval failed, using local storage:', err);
   }
 
-  // Fallback to local storage if backend offline or session expired
+  // Fallback to local storage only if backend offline/unreachable
   const savedUser = localStorage.getItem('user');
   if (savedUser) {
     try {
@@ -1079,6 +1431,7 @@ async function initAuth() {
       renderUserProfile();
     } catch (e) {
       localStorage.removeItem('user');
+      localStorage.removeItem('session_token');
     }
   }
 
@@ -1129,7 +1482,8 @@ async function handleCredentialResponse(response) {
     const res = await fetch(API_BASE_URL + '/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential: response.credential })
+      body: JSON.stringify({ credential: response.credential }),
+      credentials: 'include'
     });
 
     if (!res.ok) throw new Error('Đăng nhập qua backend thất bại');
@@ -1137,6 +1491,9 @@ async function handleCredentialResponse(response) {
     const data = await res.json();
     if (data.success && data.user) {
       currentUser = data.user;
+      if (data.token) {
+        localStorage.setItem('session_token', data.token);
+      }
       localStorage.setItem('user', JSON.stringify(currentUser));
       renderUserProfile();
       showToast(`Chào mừng ${currentUser.name} đã quay lại! 👋`);
@@ -1155,13 +1512,18 @@ async function handleLogout(e) {
   if (e) e.preventDefault();
 
   try {
-    await fetch(API_BASE_URL + '/api/auth/logout', { method: 'POST' });
+    await fetch(API_BASE_URL + '/api/auth/logout', { 
+      method: 'POST', 
+      headers: getAuthHeaders(),
+      credentials: 'include' 
+    });
   } catch (err) {
     console.warn('Backend logout call failed, cleaning up client anyway:', err);
   }
 
   currentUser = null;
   localStorage.removeItem('user');
+  localStorage.removeItem('session_token');
 
   const userDropdownToggle = document.querySelector('.user-dropdown');
   if (userDropdownToggle) {
@@ -2122,7 +2484,11 @@ function deleteCustomList(name) {
   const wordsToMigrate = vocabList.filter(w => w.isCustom && w.category === name);
 
   Promise.all(wordsToMigrate.map(w => {
-    return fetch(API_BASE_URL + '/api/vocabulary/' + w.id, { method: 'DELETE' })
+    return fetch(API_BASE_URL + '/api/vocabulary/' + w.id, { 
+      method: 'DELETE', 
+      headers: getAuthHeaders(),
+      credentials: 'include' 
+    })
       .catch(err => console.error("Error deleting word during list delete:", err));
   })).then(() => {
     customLists = customLists.filter(l => l !== name);
@@ -2328,18 +2694,51 @@ function showRevealedDetails(current) {
 }
 
 async function setWordWrong(id, isWrong) {
+  if (!currentUser) {
+    const index = vocabList.findIndex(w => w.id === id);
+    if (index !== -1) {
+      vocabList[index].isWrong = isWrong;
+      
+      const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+      if (!guestProgress[id]) guestProgress[id] = {};
+      guestProgress[id].isWrong = isWrong;
+      localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+      
+      updateStats();
+    }
+    return;
+  }
+
   try {
     const response = await fetch(API_BASE_URL + '/api/vocabulary/set-wrong', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, isWrong })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id, isWrong }),
+      credentials: 'include'
     });
+    if (response.status === 401) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('session_token');
+      currentUser = null;
+      renderUserProfile();
+      showToast('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', true);
+      const index = vocabList.findIndex(w => w.id === id);
+      if (index !== -1) {
+        vocabList[index].isWrong = isWrong;
+        const guestProgress = JSON.parse(localStorage.getItem('guest_progress') || '{}');
+        if (!guestProgress[id]) guestProgress[id] = {};
+        guestProgress[id].isWrong = isWrong;
+        localStorage.setItem('guest_progress', JSON.stringify(guestProgress));
+        updateStats();
+      }
+      return;
+    }
     if (!response.ok) throw new Error('Lỗi cập nhật trạng thái sai');
     const updatedWord = await response.json();
 
     const index = vocabList.findIndex(w => w.id === updatedWord.id);
     if (index !== -1) {
-      vocabList[index] = updatedWord;
+      vocabList[index] = { ...vocabList[index], ...updatedWord };
       updateStats();
     }
   } catch (error) {

@@ -660,6 +660,89 @@ a {
   align-items: center;
   box-shadow: var(--shadow-sm);
   min-width: 110px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.widget-item[data-status]:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-blue);
+  background-color: rgba(59, 130, 246, 0.08);
+  box-shadow: var(--shadow-md);
+}
+
+.widget-item[data-status]:active {
+  transform: translateY(0);
+}
+
+/* Filtered vocabulary table button styles */
+.study-row-btn:hover {
+  background-color: var(--success) !important;
+  color: white !important;
+}
+
+.star-row-btn {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text-secondary);
+}
+
+.star-row-btn.active {
+  background-color: var(--warning) !important;
+  color: #1e1b1b !important;
+}
+
+.star-row-btn:hover {
+  background-color: var(--warning) !important;
+  color: #1e1b1b !important;
+}
+
+.check-row-btn {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--text-secondary);
+}
+
+.check-row-btn.active {
+  background-color: var(--success) !important;
+  color: white !important;
+}
+
+.check-row-btn:hover {
+  background-color: var(--success) !important;
+  color: white !important;
+}
+
+.speak-row-btn:hover {
+  background-color: var(--accent-blue) !important;
+  color: white !important;
+}
+
+/* List Tab buttons */
+.list-tab-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.list-tab-btn.active {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
 .widget-value {
