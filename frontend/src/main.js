@@ -150,15 +150,13 @@ function speakText(text) {
 
   showToast("Đang tải phát âm...", false);
 
-  // Bí kíp: Xóa hết dấu câu tiếng Trung & tiếng Việt vì Youdao tra từ điển vướng dấu sẽ bị lỗi
-  const cleanText = text.replace(/[。，！？；：""''（）\.\,\!\?\;\:\(\)]/g, '');
+  // Đổi sang dùng API fanyivoice (Dịch thuật) thay vì dictvoice (Từ điển)
+  const audioUrl = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(text)}&le=zh&keyfrom=speaker-target`;
 
-  const audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleanText)}&le=zh`;
   const audio = new Audio(audioUrl);
-
   audio.play().catch(err => {
     console.error("Lỗi phát âm thanh:", err);
-    showToast("Trình duyệt chặn âm thanh, thử click vào trang web trước nhé!", true);
+    showToast("Trình duyệt đang chặn âm thanh, thử click vào trang web trước nhé!", true);
   });
 }
 
@@ -1365,9 +1363,8 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      // Lọc sạch dấu câu cho phần thi thử trước khi gọi Youdao
-      const cleanAudioText = q.audioText.replace(/[。，！？；：""''（）\.\,\!\?\;\:\(\)]/g, '');
-      examAudioPlayer.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleanAudioText)}&le=zh`;
+      // Dùng API Dịch thuật của Youdao cho phần thi
+      examAudioPlayer.src = `https://tts.youdao.com/fanyivoice?word=${encodeURIComponent(q.audioText)}&le=zh&keyfrom=speaker-target`;
     }
   } else {
     audioContainer.style.display = 'none';
