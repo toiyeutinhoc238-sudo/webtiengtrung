@@ -148,28 +148,16 @@ function initVoices() {
 function speakText(text) {
   if (!text) return;
 
-  // 1. Kiểm tra xem trình duyệt có hỗ trợ không
-  if (typeof speechSynthesis === 'undefined') {
-    showToast("Trình duyệt của bạn không hỗ trợ phát âm thanh!", true);
-    return;
-  }
+  showToast("Đang tải phát âm...", false);
 
-  // 2. Tắt ngay âm thanh cũ nếu đang đọc dở
-  speechSynthesis.cancel();
-  showToast("Đang phát âm thanh...", false);
+  // Gọi trực tiếp API âm thanh của từ điển Youdao (chuyên tiếng Trung)
+  const audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=zh`;
+  const audio = new Audio(audioUrl);
 
-  // 3. Khởi tạo giọng đọc mới
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'zh-CN'; // Ép ngôn ngữ tiếng Trung
-  utterance.rate = 0.85;    // Tốc độ đọc (nhỏ hơn 1 là đọc chậm lại chút cho dễ nghe)
-
-  // Nếu tìm thấy giọng tiếng Trung chất lượng cao thì dùng
-  if (chineseVoice) {
-    utterance.voice = chineseVoice;
-  }
-
-  // 4. Bắt đầu đọc
-  speechSynthesis.speak(utterance);
+  audio.play().catch(err => {
+    console.error("Lỗi phát âm thanh:", err);
+    showToast("Trình duyệt đang chặn âm thanh, thử click vào trang web trước nhé!", true);
+  });
 }
 
 function fallbackSpeakSpeechSynthesis(text) {
@@ -1375,7 +1363,8 @@ function renderActiveQuestion() {
   if (q.audioText) {
     audioContainer.style.display = 'flex';
     if (examAudioPlayer) {
-      examAudioPlayer.src = ''; // Bỏ trống để ép hệ thống dùng hàm speakText
+      // Gắn thẳng link Youdao vào audio player của bài thi
+      examAudioPlayer.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(q.audioText)}&le=zh`;
     }
   } else {
     audioContainer.style.display = 'none';
